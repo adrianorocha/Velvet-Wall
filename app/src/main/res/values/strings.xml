@@ -1,3 +1,55 @@
 <resources>
     <string name="app_name">Velvet Wall</string>
+    <string name="app_slogan">Apenas convidados.</string>
+
+    <string name="biometric_title">Acesso Restrito</string>
+    <string name="biometric_subtitle">Confirme sua identidade para acessar o Velvet Wall</string>
+    <string name="biometric_negative_btn">Sair</string>
+    <string name="biometric_error_no_hardware">Seu dispositivo não suporta segurança biométrica.</string>
+    <string name="biometric_error_none_enrolled">Cadastre uma biometria nas configurações do Android para usar este app.</string>
+    <string name="biometric_toast_success">Identidade confirmada.</string>
+
+    <string name="home_status_active">Proteção Ativa</string>
+    <string name="home_status_inactive">Proteção Pausada</string>
+    <string name="home_monitoring_label">Monitorando chamadas em tempo real</string>
+    <string name="nav_home">Escudo</string>
+    <string name="nav_blacklist">Lista Negra</string>
+    <string name="nav_history">Histórico</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <string name="blacklist_title">Números Bloqueados</string>
+    <string name="blacklist_empty">Sua lista de bloqueio está vazia.</string>
+    <string name="blacklist_add_button">Adicionar</string>
+    <string name="blacklist_remove_desc">Remover da lista</string>
+
+    <string name="dialog_add_title">Bloquear Novo Número</string>
+    <string name="dialog_input_phone">Número de Telefone</string>
+    <string name="dialog_input_label">Rótulo (opcional)</string>
+    <string name="dialog_btn_add">Adicionar à Parede</string>
+    <string name="dialog_error_empty">Digite um número válido.</string>
+
+    <string name="history_title">Histórico de Bloqueios</string>
+    <string name="history_clear_btn">Limpar</string>
+    <string name="history_empty_state">Nenhuma ameaça detectada recentement.</string>
+    <string name="history_item_reason_blacklist">Lista Negra</string>
+    <string name="history_item_reason_not_contact">Fora da Agenda</string>
+    <string name="history_item_reason_private">Número Privado</string>
+
+    <string name="settings_title">Configurações</string>
+
+    <string name="pref_group_rules">Regras de Bloqueio</string>
+    <string name="pref_private_numbers_title">Bloquear Números Privados</string>
+    <string name="pref_private_numbers_desc">Rejeitar chamadas com ID oculto ou desconhecido</string>
+    <string name="pref_foreign_numbers_title">Bloquear Internacionais</string>
+    <string name="pref_foreign_numbers_desc">Bloquear chamadas começando com DDI diferente de +55</string>
+
+    <string name="pref_group_system">Sistema</string>
+    <string name="pref_notifications_title">Notificações Silenciosas</string>
+    <string name="pref_notifications_desc">Alertar discretamente quando uma chamada for barrada</string>
+    <string name="pref_biometrics_title">Proteção Biométrica</string>
+    <string name="pref_biometrics_desc">Exigir FaceID/TouchID ao abrir o app</string>
+
+    <string name="pref_group_about">Sobre</string>
+    <string name="app_version">Versão 1.0.0 (Build Premium)</string>
+    <string name="developer_brand">Desenvolvido por Blu Macaw</string>
 </resources>
