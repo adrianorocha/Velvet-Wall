@@ -83,6 +83,8 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation("androidx.work:work-runtime-ktx:2.7.1")
     implementation(libs.navigation.compose)
+    implementation("com.airbnb.android:lottie-compose:6.1.0")
+    implementation(libs.foundation)
 
 
     ksp("androidx.room:room-compiler:2.8.4")

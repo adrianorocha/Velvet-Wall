@@ -94,7 +94,10 @@ val importance = NotificationManager.IMPORTANCE_HIGH
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun VelvetAppNavigation(viewModel: MainViewModel = viewModel()) {
+fun VelvetAppNavigation(
+    viewModel: MainViewModel = viewModel(),
+    startDestination: String = "home")
+{
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -176,7 +179,7 @@ fun VelvetAppNavigation(viewModel: MainViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        NavHost(navController, startDestination = "home", modifier = Modifier.padding(padding)) {
+        NavHost(navController, startDestination = startDestination, modifier = Modifier.padding(padding)) {
             composable("home") { HomeScreen(viewModel) }
             composable("blacklist") { BlacklistScreen(viewModel) }
             composable("history") { HistoryScreen(viewModel) }

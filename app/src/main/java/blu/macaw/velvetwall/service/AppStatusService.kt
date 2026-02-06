@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.IBinder
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import blu.macaw.velvetwall.MainActivity
 import blu.macaw.velvetwall.R
 import blu.macaw.velvetwall.data.UserSettings
@@ -38,27 +39,22 @@ class AppStatusService : Service() {
     }
 
     private fun updateCustomNotification(isBlockingUnknown: Boolean) {
-        // 1. Prepara os Intents (Ações dos cliques)
-
-        // Clicar no corpo da notificação abre o App
+        // 1. Prepara os Intents (Ações dos cliques) - IGUAL AO ANTERIOR
         val openAppIntent = Intent(this, MainActivity::class.java)
         val pendingOpenApp = PendingIntent.getActivity(this, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        // Botão Toggle (Desativar/Ativar)
         val toggleIntent = Intent(this, NotificationReceiver::class.java).apply {
             action = "TOGGLE_UNKNOWN"
             putExtra("CURRENT_STATE", isBlockingUnknown)
         }
         val pendingToggle = PendingIntent.getBroadcast(this, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // Botão Configurações
         val settingsIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("NAVIGATE_TO", "settings")
         }
         val pendingSettings = PendingIntent.getActivity(this, 2, settingsIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // Botão Ver Lista
         val listIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("NAVIGATE_TO", "blacklist")
@@ -68,27 +64,39 @@ class AppStatusService : Service() {
         // 2. Configura a RemoteView (O Layout Personalizado)
         val customLayout = RemoteViews(packageName, R.layout.notification_control_panel)
 
-        // Define os textos dinâmicos
+        // Define os textos e ícones dinâmicos
         val statusText = if (isBlockingUnknown) "Proteção Máxima Ativa" else "Modo Monitoramento"
         val toggleText = if (isBlockingUnknown) "Desativar" else "Ativar"
+        // Ícone de "tomada" ou "escudo" que muda conforme o estado
+        val toggleIcon = if (isBlockingUnknown) R.drawable.ic_power_off else R.drawable.ic_shield_large // Use um ícone de 'ligar' se tiver
 
         customLayout.setTextViewText(R.id.notif_status_text, statusText)
         customLayout.setTextViewText(R.id.txt_toggle, toggleText)
+        // Atualiza o ícone do botão de alternar
+        customLayout.setImageViewResource(R.id.icon_toggle, toggleIcon)
 
         // Conecta os botões aos Intents
         customLayout.setOnClickPendingIntent(R.id.btn_toggle, pendingToggle)
         customLayout.setOnClickPendingIntent(R.id.btn_settings, pendingSettings)
         customLayout.setOnClickPendingIntent(R.id.btn_list, pendingList)
 
-        // Define ícone dinâmico se quiser (ex: escudo cinza se desativado)
-        // customLayout.setImageViewResource(R.id.notif_icon, R.mipmap.ic_launcher)
-
         // 3. Constrói a Notificação
+        // Pegando a cor Ciano dos recursos para usar no builder
+        val royalCyanColor = ContextCompat.getColor(this, R.color.royal_cyan)
+
         val notification = NotificationCompat.Builder(this, "STATUS_CHANNEL_ID")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock) // Ícone da barra de status (obrigatório)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle()) // Estilo que permite layout customizado
-            .setCustomContentView(customLayout) // <--- AQUI ESTÁ A MÁGICA (Layout Colapsado)
-            .setCustomBigContentView(customLayout) // <--- AQUI TAMBÉM (Layout Expandido)
+            // Ícone pequeno obrigatório para a barra de status (deve ser branco/transparente)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            // Define a cor de destaque da notificação (usada pelo sistema)
+            .setColor(royalCyanColor)
+            // Habilita a notificação colorida (essencial para o fundo escuro funcionar bem)
+            .setColorized(true)
+            // Define o estilo de layout personalizado
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(customLayout)
+            .setCustomBigContentView(customLayout)
+            // Define que é uma notificação de serviço em andamento
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(pendingOpenApp)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

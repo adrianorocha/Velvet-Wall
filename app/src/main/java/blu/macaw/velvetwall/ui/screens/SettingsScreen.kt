@@ -4,9 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -36,6 +38,12 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val blockUnknown by viewModel.blockUnknown.collectAsState(initial = false)
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
     val biometricEnabled by viewModel.biometricEnabled.collectAsState(initial = true)
+    // Opções de limpeza em dias
+    val cleanupOptions = listOf(7, 15, 30, 90)
+    var expanded by remember { mutableStateOf(false) }
+
+    // Valor inicial (Idealmente viria do UserSettings via ViewModel)
+    var selectedDays by remember { mutableStateOf(30) }
 
     Column(
         modifier = Modifier
@@ -98,6 +106,84 @@ fun SettingsScreen(viewModel: MainViewModel) {
             )
         }
 
+        SettingsGroup(title = "MANUTENÇÃO DE LOGS") {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // VelvetDark
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Limpeza Automática",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Apagar registros com mais de $selectedDays dias",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    // Seletor Dropdown Estilizado
+                    Box {
+                        Surface(
+                            onClick = { expanded = true },
+                            color = Color(0xFF0F172A), // DarkBg
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "$selectedDays dias",
+                                    color = RoyalCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = RoyalCyan
+                                )
+                            }
+                        }
+
+                        // Menu de Opções
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color(0xFF1E293B))
+                        ) {
+                            cleanupOptions.forEach { days ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text("$days dias", color = Color.White)
+                                    },
+                                    onClick = {
+                                        selectedDays = days
+                                        expanded = false
+                                        // DISPARA O WORKMANAGER VIA VIEWMODEL
+                                        viewModel.scheduleCleanup(days)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         SettingsGroup("Dados") {
             SettingsClickableItem(
                 icon = Icons.Default.DeleteSweep,
@@ -111,6 +197,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 showArrow = false
             )
         }
+
 
         // Rodapé
         Column(

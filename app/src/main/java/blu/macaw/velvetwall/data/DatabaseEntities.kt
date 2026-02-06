@@ -75,4 +75,7 @@ interface CallLogDao {
 
     @Query("DELETE FROM call_logs")
     suspend fun clear(): Int
+
+    @Query("DELETE FROM call_logs WHERE timestamp < :threshold")
+    suspend fun deleteOldLogs(threshold: Long)
 }

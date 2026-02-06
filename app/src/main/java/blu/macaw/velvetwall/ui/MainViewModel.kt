@@ -1,25 +1,49 @@
 package blu.macaw.velvetwall.ui
 
+import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.data.BlockedNumber
 import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import blu.macaw.velvetwall.data.WhiteListNumber
+import blu.macaw.velvetwall.data.worker.CleanupWorker
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
+import java.util.concurrent.TimeUnit
+import androidx.work.Constraints
 class MainViewModel(
+    application: Application,
     private val repository: CallRepository,
     private val userSettings: UserSettings
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
+    init {
+        // Observa o histórico. Sempre que mudar, pegamos o último e notificamos a UI
+        viewModelScope.launch {
+            repository.callLogs.collect { logs ->
+                val lastLog = logs.firstOrNull()
+                // Se o log for recente (últimos 2 segundos), avisamos o escudo
+                if (lastLog != null && System.currentTimeMillis() - lastLog.timestamp < 2000) {
+                    notifyBlock(lastLog.number)
+                }
+            }
+        }
+    }
 
     // Lists
     val blacklist = repository.blacklist
@@ -35,6 +59,22 @@ class MainViewModel(
     private val _isServiceActive = MutableStateFlow(false)
     val isServiceActive: StateFlow<Boolean> = _isServiceActive.asStateFlow()
 
+
+    private val _blockEvent = MutableSharedFlow<String>(
+        replay = 0, // Não queremos que mensagens antigas apareçam ao trocar de tela
+        extraBufferCapacity = 1
+    )
+    val blockEvent = _blockEvent.asSharedFlow() // Use StateFlow para melhor integração com UI
+
+    fun notifyBlock(number: String) {
+        viewModelScope.launch {
+            _blockEvent.emit("🛡️ Escudo Ativado: $number bloqueado!")
+
+            // Pequeno delay para "resetar" o fluxo e permitir novos pop-ups
+            delay(3000)
+            _blockEvent.emit("")
+        }
+    }
     // --- AÇÕES BLACKLIST ---
     fun addToBlacklist(number: String, reason: String = "Manual") {
         viewModelScope.launch { repository.addToBlacklist(number, reason) }
@@ -103,19 +143,42 @@ class MainViewModel(
             _isServiceActive.value = true
         }
     }
+
+    fun scheduleCleanup(days: Int) {
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true) // Só limpa se tiver bateria
+            .setRequiresDeviceIdle(true)   // Só limpa quando o usuário não estiver usando
+            .build()
+
+        val cleanupRequest = PeriodicWorkRequestBuilder<CleanupWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .addTag("log_cleanup")
+            .build()
+
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(
+                "VelvetCleanup",
+                ExistingPeriodicWorkPolicy.REPLACE, // Atualiza se mudar os dias
+                cleanupRequest
+            )
+    }
+
 }
 
 // Factory (igual)
 class MainViewModelFactory(
+    private val application: Application,
     private val repository: CallRepository,
     private val userSettings: UserSettings
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return MainViewModel(repository, userSettings) as T
+            return MainViewModel(application, repository, userSettings) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+
+
 
