@@ -26,6 +26,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import androidx.work.Constraints
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+
 class MainViewModel(
     application: Application,
     private val repository: CallRepository,
@@ -59,7 +62,18 @@ class MainViewModel(
     private val _isServiceActive = MutableStateFlow(false)
     val isServiceActive: StateFlow<Boolean> = _isServiceActive.asStateFlow()
 
+    val cleanupDays = userSettings.cleanupDaysFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), 30
+    )
+    fun updateCleanupSettings(days: Int) {
+        viewModelScope.launch {
+            // 1. Grava no DataStore (Persistência real)
+            userSettings.setCleanupDays(days)
 
+            // 2. Agenda a tarefa no Android
+            scheduleCleanup(days)
+        }
+    }
     private val _blockEvent = MutableSharedFlow<String>(
         replay = 0, // Não queremos que mensagens antigas apareçam ao trocar de tela
         extraBufferCapacity = 1

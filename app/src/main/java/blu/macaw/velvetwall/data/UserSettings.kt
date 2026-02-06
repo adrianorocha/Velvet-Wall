@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,6 +21,7 @@ class UserSettings(private val context: Context) {
         val BLOCK_UNKNOWN = booleanPreferencesKey("block_unknown")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val BIOMETRIC_ENABLED = booleanPreferencesKey("biometric_enabled")
+        val CLEANUP_DAYS = intPreferencesKey("cleanup_days")
     }
 
     // --- LEITURA (Flows que atualizam a tela automaticamente) ---
@@ -36,6 +38,12 @@ class UserSettings(private val context: Context) {
     val biometricFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[BIOMETRIC_ENABLED] ?: true } // Padrão: Ativado
 
+
+    val cleanupDaysFlow: Flow<Int> = context.dataStore.data.map { it[CLEANUP_DAYS] ?: 30 }
+
+    suspend fun setCleanupDays(days: Int) {
+        context.dataStore.edit { it[CLEANUP_DAYS] = days }
+    }
     // --- ESCRITA (Funções para salvar) ---
 
     suspend fun setBlockPrivate(enabled: Boolean) {

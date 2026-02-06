@@ -42,8 +42,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val cleanupOptions = listOf(7, 15, 30, 90)
     var expanded by remember { mutableStateOf(false) }
 
-    // Valor inicial (Idealmente viria do UserSettings via ViewModel)
-    var selectedDays by remember { mutableStateOf(30) }
+    val selectedDays by viewModel.cleanupDays.collectAsState()
 
     Column(
         modifier = Modifier
@@ -135,6 +134,10 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
                     // Seletor Dropdown Estilizado
                     Box {
+                        TextButton(onClick = { expanded = true }) {
+                            Text("$selectedDays dias", color = RoyalCyan)
+                            Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
+                        }
                         Surface(
                             onClick = { expanded = true },
                             color = Color(0xFF0F172A), // DarkBg
@@ -165,16 +168,13 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             onDismissRequest = { expanded = false },
                             modifier = Modifier.background(Color(0xFF1E293B))
                         ) {
-                            cleanupOptions.forEach { days ->
+                            listOf(7, 15, 30, 90).forEach { days ->
                                 DropdownMenuItem(
-                                    text = {
-                                        Text("$days dias", color = Color.White)
-                                    },
+                                    text = { Text("$days dias", color = Color.White) },
                                     onClick = {
-                                        selectedDays = days
                                         expanded = false
-                                        // DISPARA O WORKMANAGER VIA VIEWMODEL
-                                        viewModel.scheduleCleanup(days)
+                                        // Chama a função que grava E agenda
+                                        viewModel.updateCleanupSettings(days)
                                     }
                                 )
                             }
