@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation("com.airbnb.android:lottie-compose:6.1.0")
     implementation(libs.foundation)
+    implementation("androidx.compose.foundation:foundation:1.7.0")
 
 
     ksp("androidx.room:room-compiler:2.8.4")

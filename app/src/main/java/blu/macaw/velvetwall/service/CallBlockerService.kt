@@ -2,22 +2,22 @@ package blu.macaw.velvetwall.service
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.app.PendingIntent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
-import android.telephony.PhoneNumberUtils
 import android.telecom.Call
 import android.telecom.CallScreeningService
+import android.telephony.PhoneNumberUtils
 import android.util.Log
+import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import blu.macaw.velvetwall.MainActivity
 import blu.macaw.velvetwall.R
@@ -30,6 +30,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+
+private const val GROUP_KEY_BLOCKS = "blu.macaw.velvetwall.BLOCK_GROUP"
+private const val SUMMARY_ID = 0
+private const val MAX_NOTIFICATIONS = 5
 class CallBlockerService : CallScreeningService() {
 
     private val repository by lazy {
@@ -55,7 +59,10 @@ class CallBlockerService : CallScreeningService() {
                     // Verifica se é Emergência (190, 192) ou Utilidade Pública (180, 100)
                     // Se for, liberamos IMEDIATAMENTE antes de qualquer verificação.
                     if (isEmergencyOrUtility(applicationContext, rawNumber, normalizedNumber)) {
-                        Log.w("VELVET_SRV", "🚨 ALERTA: Número de Emergência/Utilidade detectado! LIBERANDO: $rawNumber")
+                        Log.w(
+                            "VELVET_SRV",
+                            "🚨 ALERTA: Número de Emergência/Utilidade detectado! LIBERANDO: $rawNumber"
+                        )
                         respondToCall(callDetails, buildResponse(false))
                         return@launch
                     }
@@ -131,7 +138,11 @@ class CallBlockerService : CallScreeningService() {
     }
 
     // --- NOVA FUNÇÃO DE SEGURANÇA ---
-    private fun isEmergencyOrUtility(context: Context, rawNumber: String, normNumber: String): Boolean {
+    private fun isEmergencyOrUtility(
+        context: Context,
+        rawNumber: String,
+        normNumber: String
+    ): Boolean {
         // 1. Verifica se o Android considera emergência (Baseado no chip/país)
         // Isso cobre 190, 192, 193, 911, 112 automaticamente.
         if (PhoneNumberUtils.isEmergencyNumber(rawNumber)) {
@@ -166,78 +177,82 @@ class CallBlockerService : CallScreeningService() {
 
     // ... (Mantenha as funções hasContactPermission, isContact, buildResponse e showNotification iguais) ...
     private fun hasContactPermission(context: Context): Boolean {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isContact(context: Context, number: String): Boolean {
         if (number.isBlank()) return false
         try {
-            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            val uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(number)
+            )
             val projection = arrayOf(ContactsContract.PhoneLookup._ID)
             context.contentResolver.query(uri, projection, null, null, null)?.use {
                 if (it.moveToFirst()) return true
             }
-        } catch (e: Exception) { Log.e("VELVET_SRV", "Erro contato: $e") }
+        } catch (e: Exception) {
+            Log.e("VELVET_SRV", "Erro contato: $e")
+        }
         return false
     }
 
     private fun buildResponse(block: Boolean): CallResponse {
         return if (block) {
-            CallResponse.Builder().setDisallowCall(true).setRejectCall(true).setSkipNotification(true).setSkipCallLog(false).build()
+            CallResponse.Builder().setDisallowCall(true).setRejectCall(true)
+                .setSkipNotification(true).setSkipCallLog(false).build()
         } else {
             CallResponse.Builder().build()
         }
     }
 
-/*    private fun showNotification(number: String, reason: String) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-        val builder = NotificationCompat.Builder(this, "CHANNEL_BLOCK_ID")
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("Velvet Wall: $reason")
-            .setContentText("Bloqueou: $number")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-        try { NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build()) } catch (e: Exception) {}
-    }*/
-
-// Dentro do seu CallBlockerService.kt
-
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    @SuppressLint("MissingPermission")
     private fun showNotification(number: String, reason: String) {
-//    private fun showBlockSuccessAnimation(number: String, reason: String) {
         val channelId = "BLOCK_EVENTS_CHANNEL"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Intent para abrir o histórico ao clicar
-        val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra("NAVIGATE_TO", "history")
+        // 1. Limpeza de excedentes (Manter apenas as 5 mais recentes)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val activeNotifs = notificationManager.activeNotifications
+                .filter { it.notification.group == GROUP_KEY_BLOCKS && it.id != SUMMARY_ID }
+                .sortedBy { it.postTime }
+
+            if (activeNotifs.size >= MAX_NOTIFICATIONS) {
+                notificationManager.cancel(activeNotifs.first().id)
+            }
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
 
-        // Construção da Notificação com Estilo "Big Picture" ou Ícone de Escudo
-        val builder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_shield_large) // Seu logo Blu Macaw
-            .setContentTitle("Escudo Ativado: Chamada Barrada")
-            .setContentText("O número $number foi bloqueado ($reason).")
+        // 2. RemoteViews (Layout Customizado)
+        val remoteViews = RemoteViews(packageName, R.layout.notification_block_success).apply {
+            setTextViewText(R.id.notif_block_number, "Barrado: $number")
+            setTextViewText(R.id.notif_block_reason, reason)
+        }
+
+        // 3. Notificação Individual
+        val individualBuilder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_shield_large)
+            .setCustomContentView(remoteViews)
+            // .setStyle(...)  <-- REMOVA ESTA LINHA se quiser o visual 100% customizado e arredondado
+            .setGroup(GROUP_KEY_BLOCKS)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .setColor(ContextCompat.getColor(this, R.color.royal_cyan))
             .setColorized(true)
+            .setColor(ContextCompat.getColor(this, R.color.royal_cyan))
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            // Adiciona um efeito sonoro discreto e vibração curta (Premium feel)
-            .setVibrate(longArrayOf(0, 100, 50, 100))
-            .setPublicVersion(
-                NotificationCompat.Builder(this, channelId)
-                    .setContentTitle("Velvet Wall")
-                    .setContentText("Uma chamada indesejada foi bloqueada.")
-                    .build()
-            )
+            .build()
 
-        NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())
-    }
-}
+        // 4. Notificação de Resumo (Obrigatória para não "se perder")
+        val summaryBuilder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_shield_large)
+            .setGroup(GROUP_KEY_BLOCKS)
+            .setGroupSummary(true) // Crucial para o empilhamento
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        // Postar a individual com ID único e o Resumo com ID fixo
+        notificationManager.notify(System.currentTimeMillis().toInt(), individualBuilder)
+        notificationManager.notify(SUMMARY_ID, summaryBuilder)
+    }}

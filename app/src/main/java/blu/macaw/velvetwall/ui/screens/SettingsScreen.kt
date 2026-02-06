@@ -105,6 +105,23 @@ fun SettingsScreen(viewModel: MainViewModel) {
             )
         }
 
+        SettingsGroup(title = "AÇÕES RÁPIDAS") {
+            Button(
+                onClick = {
+                    viewModel.clearEverything()
+                    Toast.makeText(context, "🛡️ Tudo limpo e notificações removidas!", Toast.LENGTH_LONG).show()
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B)), // Vermelho Premium
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("LIMPAR TUDO AGORA", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         SettingsGroup(title = "MANUTENÇÃO DE LOGS") {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // VelvetDark

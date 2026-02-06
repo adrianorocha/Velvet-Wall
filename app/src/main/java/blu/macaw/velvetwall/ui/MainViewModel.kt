@@ -1,6 +1,7 @@
 package blu.macaw.velvetwall.ui
 
 import android.app.Application
+import android.app.NotificationManager
 import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
@@ -175,6 +176,20 @@ class MainViewModel(
                 ExistingPeriodicWorkPolicy.REPLACE, // Atualiza se mudar os dias
                 cleanupRequest
             )
+    }
+
+    fun clearEverything() {
+        viewModelScope.launch {
+            // 1. Limpa o Banco de Dados
+            repository.clearLogs()
+
+            // 2. Limpa a Central de Notificações
+            val notificationManager = getApplication<Application>()
+                .getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Cancela as individuais e o resumo (Summary)
+            notificationManager.cancelAll()
+        }
     }
 
 }

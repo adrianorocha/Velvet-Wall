@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.*
-import blu.macaw.velvetwall.R // Importe seu R
+import blu.macaw.velvetwall.R
 import kotlinx.coroutines.delay
 
 @Composable
