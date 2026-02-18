@@ -3,10 +3,9 @@ package blu.macaw.velvetwall.service
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
@@ -19,7 +18,6 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import blu.macaw.velvetwall.MainActivity
 import blu.macaw.velvetwall.R
 import blu.macaw.velvetwall.data.AppDatabase
 import blu.macaw.velvetwall.data.BlockedCallLog
@@ -29,11 +27,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.util.Calendar
 
 
 private const val GROUP_KEY_BLOCKS = "blu.macaw.velvetwall.BLOCK_GROUP"
 private const val SUMMARY_ID = 0
 private const val MAX_NOTIFICATIONS = 5
+private val lastBlockTimes = mutableMapOf<String, Long>() // Mapa para silenciamento inteligente
 class CallBlockerService : CallScreeningService() {
 
     private val repository by lazy {
@@ -209,50 +210,77 @@ class CallBlockerService : CallScreeningService() {
         }
     }
 
+    // 1. Defina a ação (deve ser IGUAL à do ViewModel)
+    companion object {
+        const val ACTION_TEST_BLOCK = "com.blu.macaw.velvetwall.ACTION_TEST_BLOCK"
+    }
+
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     @SuppressLint("MissingPermission")
     private fun showNotification(number: String, reason: String) {
         val channelId = "BLOCK_EVENTS_CHANNEL"
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // 1. Limpeza de excedentes (Manter apenas as 5 mais recentes)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val activeNotifs = notificationManager.activeNotifications
-                .filter { it.notification.group == GROUP_KEY_BLOCKS && it.id != SUMMARY_ID }
-                .sortedBy { it.postTime }
+        // NOME ALTERADO: currentTimeMillis para evitar conflito
+        val currentTimeMillis = System.currentTimeMillis()
 
-            if (activeNotifs.size >= MAX_NOTIFICATIONS) {
-                notificationManager.cancel(activeNotifs.first().id)
-            }
+        // NOME ALTERADO: calendar para a lógica de horário
+        val calendar = Calendar.getInstance()
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+
+        // 1. Silenciamento Inteligente (Buffer de 1 minuto)
+        val lastTime = lastBlockTimes[number] ?: 0L
+        val isSpamming = (currentTimeMillis - lastTime) < 60000
+        lastBlockTimes[number] = currentTimeMillis
+
+        // 2. Lógica de Modo Noturno (22h às 06h)
+        // Buscamos a preferência do DataStore (certifique-se de que a variável já existe no ViewModel/Settings)
+        val isNightModeSettingEnabled = runBlocking { userSettings.nightModeFlow.first() }
+        val applyNightSilence = isNightModeSettingEnabled && (hour >= 22 || hour < 6)
+
+        // 3. Definição de Cores e Risco
+        val isHighRisk = reason.contains("Blacklist", ignoreCase = true) || reason.contains("Spam", ignoreCase = true)
+        val accentColor = if (isHighRisk) Color.parseColor("#EF4444") else ContextCompat.getColor(this, R.color.royal_cyan)
+
+        // 4. Prioridade Dinâmica
+        val priority = when {
+            applyNightSilence -> NotificationCompat.PRIORITY_MIN // Totalmente silencioso à noite
+            isSpamming -> NotificationCompat.PRIORITY_LOW // Baixa prioridade se for repetitivo
+            else -> NotificationCompat.PRIORITY_HIGH // Normal
         }
 
-        // 2. RemoteViews (Layout Customizado)
+        // 5. RemoteViews Dinâmicas
         val remoteViews = RemoteViews(packageName, R.layout.notification_block_success).apply {
-            setTextViewText(R.id.notif_block_number, "Barrado: $number")
-            setTextViewText(R.id.notif_block_reason, reason)
+            setTextViewText(R.id.notif_block_number, if (isHighRisk) "ALERTA: Número Barrado" else "Escudo: Chamada Barrada")
+            setTextViewText(R.id.notif_block_reason, "$number ($reason)")
+
+            // Cores Dinâmicas no layout arredondado
+            val glow = if (isHighRisk) R.drawable.bg_icon_red_alert else R.drawable.bg_icon_cyan_glow
+            setInt(R.id.icon_container, "setBackgroundResource", glow)
+            setInt(R.id.notif_arrow, "setColorFilter", accentColor)
         }
 
-        // 3. Notificação Individual
+        // 6. Notificação Individual
         val individualBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_shield_large)
             .setCustomContentView(remoteViews)
-            // .setStyle(...)  <-- REMOVA ESTA LINHA se quiser o visual 100% customizado e arredondado
             .setGroup(GROUP_KEY_BLOCKS)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColorized(true)
-            .setColor(ContextCompat.getColor(this, R.color.royal_cyan))
+            .setPriority(priority)
+            .setColor(accentColor)
+            .setVibrate(if (applyNightSilence || isSpamming) longArrayOf(0) else longArrayOf(0, 100))
             .setAutoCancel(true)
             .build()
 
-        // 4. Notificação de Resumo (Obrigatória para não "se perder")
+        // 7. Notificação de Resumo (ID Fixo para empilhamento)
         val summaryBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_shield_large)
             .setGroup(GROUP_KEY_BLOCKS)
-            .setGroupSummary(true) // Crucial para o empilhamento
+            .setGroupSummary(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setColor(accentColor)
             .build()
 
-        // Postar a individual com ID único e o Resumo com ID fixo
-        notificationManager.notify(System.currentTimeMillis().toInt(), individualBuilder)
+        notificationManager.notify(currentTimeMillis.toInt(), individualBuilder)
         notificationManager.notify(SUMMARY_ID, summaryBuilder)
-    }}
+    }
+}

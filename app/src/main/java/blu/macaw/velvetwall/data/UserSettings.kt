@@ -61,4 +61,17 @@ class UserSettings(private val context: Context) {
     suspend fun setBiometric(enabled: Boolean) {
         context.dataStore.edit { it[BIOMETRIC_ENABLED] = enabled }
     }
+
+    private val NIGHT_MODE_KEY = booleanPreferencesKey("night_mode_enabled")
+
+    val nightModeFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[NIGHT_MODE_KEY] ?: true // Ativado por padrão
+        }
+
+    suspend fun setNightMode(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[NIGHT_MODE_KEY] = enabled
+        }
+    }
 }

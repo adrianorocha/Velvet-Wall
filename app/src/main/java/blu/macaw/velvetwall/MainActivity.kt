@@ -82,7 +82,6 @@ class MainActivity : FragmentActivity() {
         Log.d("VelvetNav", "Novo comando recebido: $targetScreen")
 
         // Se veio da notificação, carregamos direto (pulando splash)
-        // Nota: Você pode optar por pedir biometria aqui também se quiser segurança máxima
         loadUI(targetScreen, skipSplash = true)
     }
 

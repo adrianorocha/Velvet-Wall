@@ -4,7 +4,9 @@ import android.app.Application
 import android.app.NotificationManager
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -59,6 +61,8 @@ class MainViewModel(
     val blockUnknown = userSettings.blockUnknownFlow
     val notificationsEnabled = userSettings.notificationsFlow
     val biometricEnabled = userSettings.biometricFlow
+
+    private val context = getApplication<Application>()
 
     private val _isServiceActive = MutableStateFlow(false)
     val isServiceActive: StateFlow<Boolean> = _isServiceActive.asStateFlow()
@@ -136,6 +140,18 @@ class MainViewModel(
         }
     }
 
+
+    val nightModeEnabled = userSettings.nightModeFlow.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        true // Valor inicial
+    )
+
+    fun toggleNightMode(enabled: Boolean) {
+        viewModelScope.launch {
+            userSettings.setNightMode(enabled)
+        }
+    }
     // Ação: "Isso, continue bloqueando!"
     fun blockFromHistory(item: BlockedCallLog) {
         viewModelScope.launch {
@@ -190,6 +206,34 @@ class MainViewModel(
             // Cancela as individuais e o resumo (Summary)
             notificationManager.cancelAll()
         }
+    }
+
+    fun triggerTestNotification() {
+        viewModelScope.launch {
+            try {
+                // Simulamos os dados de uma chamada bloqueada para o teste
+                val testNumber = "+55 (11) 99999-9999"
+                val testReason = "Teste de Proteção Velvet Wall"
+
+                // Aqui chamamos a função que você já refatorou no Service
+                // Certifique-se de que o ViewModel tem acesso à instância do serviço ou via Intent
+                sendTestBroadcast(testNumber, testReason)
+            } catch (e: Exception) {
+                Log.e("VelvetWall", "Erro ao disparar teste: ${e.message}")
+            }
+        }
+    }
+
+    // Função auxiliar para disparar o teste via Broadcast (caso o serviço seja isolado)
+    private fun sendTestBroadcast(number: String, reason: String) {
+        val intent = Intent("blu.macaw.velvetwall.ACTION_TEST_BLOCK").apply {
+            // Especificamos o pacote para maior segurança (Explicit Intent)
+            setPackage(context.packageName)
+            putExtra("number", number)
+            putExtra("reason", reason)
+        }
+        // Agora o context.sendBroadcast funcionará perfeitamente!
+        context.sendBroadcast(intent)
     }
 
 }

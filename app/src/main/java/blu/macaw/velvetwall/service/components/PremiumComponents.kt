@@ -1,4 +1,4 @@
-package com.blumacaw.velvetwall.ui.components
+package blu.macaw.velvetwall.service.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

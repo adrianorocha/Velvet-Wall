@@ -3,6 +3,7 @@ package blu.macaw.velvetwall.ui
 //import blu.macaw.velvetwall.ui.screens.HistoryScreen
 import android.app.NotificationManager
 import android.app.role.RoleManager
+import android.content.Intent
 import android.os.Build
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,7 +12,6 @@ import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -74,6 +74,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import blu.macaw.velvetwall.data.BlockedCallLog
+import blu.macaw.velvetwall.service.components.HelpScreen
 import blu.macaw.velvetwall.ui.screens.BlacklistScreen
 import blu.macaw.velvetwall.ui.screens.HomeScreen
 import blu.macaw.velvetwall.ui.screens.SettingsScreen
@@ -84,8 +85,8 @@ import blu.macaw.velvetwall.ui.theme.VelvetDark
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.animation.fadeOut
-
+import android.net.Uri
+import android.provider.Settings // Para o ACTION_APPLICATION_DETAILS_SETTINGS
 
 // Cores Premium
 val DarkBg = Color(0xFF0F172A)
@@ -185,8 +186,25 @@ fun VelvetAppNavigation(
             composable("blacklist") { BlacklistScreen(viewModel) }
             composable("history") { HistoryScreen(viewModel) }
 
-            composable("settings") { SettingsScreen(viewModel) }
+            composable("settings") {
+                SettingsScreen(
+                    viewModel,
+                    onNavigateToHelp = { navController.navigate("help") })
+            }
             composable("whitelist") { WhitelistScreen(viewModel) }
+            composable("help") {
+                val context = LocalContext.current // Captura o contexto da UI
+                HelpScreen(
+                    viewModel = viewModel, // Certifique-se que o parâmetro existe na função abaixo
+                    onBack = { navController.popBackStack() },
+                    onOpenSettings = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    }
+                )
+            }
         }
     }
 }

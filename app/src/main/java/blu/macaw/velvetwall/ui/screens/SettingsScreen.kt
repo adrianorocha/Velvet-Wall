@@ -24,25 +24,27 @@ import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.ui.MainViewModel
 import blu.macaw.velvetwall.ui.components.SettingsClickableItem
 import blu.macaw.velvetwall.ui.components.SettingsGroup
-import blu.macaw.velvetwall.ui.components.SettingsSwitchItem
+import blu.macaw.velvetwall.service.components.SettingsSwitchItem
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
 @Composable
-fun SettingsScreen(viewModel: MainViewModel) {
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onNavigateToHelp: () -> Unit // Callback para a HelpScreen que você perguntou onde chamar
+) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // CONEXÃO COM DADOS REAIS:
+    // Estados do ViewModel
     val blockPrivate by viewModel.blockPrivate.collectAsState(initial = true)
     val blockUnknown by viewModel.blockUnknown.collectAsState(initial = false)
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
     val biometricEnabled by viewModel.biometricEnabled.collectAsState(initial = true)
-    // Opções de limpeza em dias
-    val cleanupOptions = listOf(7, 15, 30, 90)
-    var expanded by remember { mutableStateOf(false) }
-
+    val isNightModeEnabled by viewModel.nightModeEnabled.collectAsState()
     val selectedDays by viewModel.cleanupDays.collectAsState()
+
+    var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -51,32 +53,35 @@ fun SettingsScreen(viewModel: MainViewModel) {
             .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
+        // Cabeçalho
         Text(
-            "Configurações",
+            text = "Configurações",
             style = MaterialTheme.typography.headlineMedium,
             color = Color.White,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 24.dp, top = 8.dp)
         )
 
+        // 1. INTELIGÊNCIA DE BLOQUEIO
         SettingsGroup("Inteligência de Bloqueio") {
             SettingsSwitchItem(
                 icon = Icons.Default.NoEncryption,
                 title = "Bloquear Números Privados",
-                subtitle = "Rejeitar chamadas sem identificação (ID Oculto)",
+                subtitle = "Rejeitar chamadas com ID Oculto",
                 checked = blockPrivate,
-                onCheckedChange = { viewModel.setBlockPrivate(it) } // Salva no DataStore
+                onCheckedChange = { viewModel.setBlockPrivate(it) }
             )
             SettingsSwitchItem(
                 icon = Icons.Default.Contacts,
                 title = "Bloquear Desconhecidos",
-                subtitle = "Permitir APENAS contatos da agenda",
+                subtitle = "Permitir apenas contatos da agenda",
                 checked = blockUnknown,
                 onCheckedChange = { viewModel.setBlockUnknown(it) }
             )
         }
 
-        SettingsGroup("Sistema & Privacidade") {
+        // 2. PRIVACIDADE E CONFORTO (Integração do Modo Noturno)
+        SettingsGroup("Privacidade & Conforto") {
             SettingsSwitchItem(
                 icon = Icons.Default.NotificationsActive,
                 title = "Notificações",
@@ -85,13 +90,82 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 onCheckedChange = { viewModel.setNotifications(it) }
             )
             SettingsSwitchItem(
+                icon = Icons.Default.NightsStay,
+                title = "Silenciamento Noturno",
+                subtitle = "Modo silencioso entre 22:00 e 06:00",
+                checked = isNightModeEnabled,
+                onCheckedChange = { viewModel.toggleNightMode(it) }
+            )
+            SettingsSwitchItem(
                 icon = Icons.Default.Fingerprint,
                 title = "Proteção Biométrica",
-                subtitle = "Exigir FaceID/TouchID ao abrir o app",
+                subtitle = "Exigir biometria ao abrir o app",
                 checked = biometricEnabled,
                 onCheckedChange = { viewModel.setBiometric(it) }
             )
-            // ... resto do código igual ...
+        }
+
+        // 3. MANUTENÇÃO E LOGS
+        SettingsGroup("Manutenção de Logs") {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Limpeza Automática", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Apagar logs com mais de $selectedDays dias", color = Color.Gray, fontSize = 12.sp)
+                    }
+
+                    Box {
+                        Surface(
+                            onClick = { expanded = true },
+                            color = Color(0xFF0F172A),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("$selectedDays dias", color = RoyalCyan, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color(0xFF1E293B))
+                        ) {
+                            listOf(7, 15, 30, 90).forEach { days ->
+                                DropdownMenuItem(
+                                    text = { Text("$days dias", color = Color.White) },
+                                    onClick = {
+                                        viewModel.updateCleanupSettings(days)
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. SUPORTE E SISTEMA
+        SettingsGroup("Suporte & Sistema") {
+            SettingsClickableItem(
+                icon = Icons.Default.HelpOutline,
+                title = "Guia de Configuração",
+                subtitle = "Aprenda a manter o escudo ativo",
+                onClick = onNavigateToHelp // Chamada para a sua HelpScreen
+            )
             SettingsClickableItem(
                 icon = Icons.Default.SettingsApplications,
                 title = "Permissões do Android",
@@ -105,127 +179,50 @@ fun SettingsScreen(viewModel: MainViewModel) {
             )
         }
 
-        SettingsGroup(title = "AÇÕES RÁPIDAS") {
+        // 5. AÇÕES CRÍTICAS
+        SettingsGroup("Ações Críticas") {
+            // Botão de Limpeza Total Premium
             Button(
                 onClick = {
                     viewModel.clearEverything()
-                    Toast.makeText(context, "🛡️ Tudo limpo e notificações removidas!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "🛡️ Tudo limpo!", Toast.LENGTH_LONG).show()
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B)), // Vermelho Premium
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                    Text("LIMPAR TUDO AGORA", fontWeight = FontWeight.Bold)
-                }
+                Icon(Icons.Default.DeleteForever, null)
+                Spacer(Modifier.width(8.dp))
+                Text("LIMPAR TUDO AGORA", fontWeight = FontWeight.Bold)
             }
-        }
-        SettingsGroup(title = "MANUTENÇÃO DE LOGS") {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // VelvetDark
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Limpeza Automática",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "Apagar registros com mais de $selectedDays dias",
-                            color = Color.Gray,
-                            fontSize = 12.sp
-                        )
-                    }
 
-                    // Seletor Dropdown Estilizado
-                    Box {
-                        TextButton(onClick = { expanded = true }) {
-                            Text("$selectedDays dias", color = RoyalCyan)
-                            Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
-                        }
-                        Surface(
-                            onClick = { expanded = true },
-                            color = Color(0xFF0F172A), // DarkBg
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "$selectedDays dias",
-                                    color = RoyalCyan,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = RoyalCyan
-                                )
-                            }
-                        }
+            Spacer(Modifier.height(8.dp))
 
-                        // Menu de Opções
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.background(Color(0xFF1E293B))
-                        ) {
-                            listOf(7, 15, 30, 90).forEach { days ->
-                                DropdownMenuItem(
-                                    text = { Text("$days dias", color = Color.White) },
-                                    onClick = {
-                                        expanded = false
-                                        // Chama a função que grava E agenda
-                                        viewModel.updateCleanupSettings(days)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        SettingsGroup("Dados") {
             SettingsClickableItem(
                 icon = Icons.Default.DeleteSweep,
-                title = "Limpar Histórico",
-                subtitle = "Apagar todos os logs de bloqueio",
-                onClick = {
-                    viewModel.clearHistory()
-                    Toast.makeText(context, "Histórico limpo", Toast.LENGTH_SHORT).show()
-                },
+                title = "Limpar Apenas Histórico",
+                subtitle = "Apagar registros sem resetar o app",
+                onClick = { viewModel.clearHistory() },
                 textColor = Color(0xFFFF5252),
                 showArrow = false
             )
         }
 
+        // Rodapé Blu Macaw
+        FooterSection()
+    }
+}
 
-        // Rodapé
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(Icons.Default.Shield, null, tint = RoyalCyan.copy(alpha = 0.5f), modifier = Modifier.size(40.dp))
-            Spacer(Modifier.height(8.dp))
-            Text("Velvet Wall", color = Color.White, fontWeight = FontWeight.Bold)
-            Text("Versão 1.1.0 (Persistência Ativa)", color = Color.Gray, fontSize = 12.sp)
-            Text("Desenvolvido por Blu Macaw", color = RoyalCyan, fontSize = 12.sp)
-        }
+@Composable
+private fun FooterSection() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Shield, null, tint = RoyalCyan.copy(alpha = 0.3f), modifier = Modifier.size(40.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("Velvet Wall", color = Color.White, fontWeight = FontWeight.Bold)
+        Text("Versão 1.1.0", color = Color.Gray, fontSize = 12.sp)
+        Text("Blu Macaw Lab's", color = RoyalCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
