@@ -49,4 +49,14 @@ class CallRepository(private val context: Context, private val db: AppDatabase) 
     }
 
     suspend fun deleteLog(item: BlockedCallLog) = db.callLogDao().delete(item)
+
+    suspend fun logBlockedCall(number: String, reason: String) {
+        val logEntry = BlockedCallLog(
+            number = number,
+            blockReason = reason,
+            timestamp = System.currentTimeMillis()
+        )
+        // Chama o seu DAO para inserir no banco de dados
+        db.callLogDao().log(logEntry)
+    }
 }

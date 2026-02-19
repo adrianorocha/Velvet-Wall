@@ -46,6 +46,10 @@ fun SettingsScreen(
 
     var expanded by remember { mutableStateOf(false) }
 
+    val paranoidMode by viewModel.paranoidModeEnabled.collectAsState()
+    val localDDD by viewModel.userLocalDDD.collectAsState()
+
+    val stealthMode by viewModel.stealthModeEnabled.collectAsState()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -96,6 +100,21 @@ fun SettingsScreen(
                 checked = isNightModeEnabled,
                 onCheckedChange = { viewModel.toggleNightMode(it) }
             )
+            SettingsSwitchItem(
+                icon = Icons.Default.VisibilityOff,
+                title = "Modo Stealth",
+                subtitle = "Bloquear sem mostrar notificações ou ícones",
+                checked = stealthMode,
+                onCheckedChange = { viewModel.toggleStealthMode(it) }
+            )
+            if (stealthMode) {
+                Text(
+                    "O escudo agirá em silêncio absoluto. Verifique os logs para ver o histórico.",
+                    color = RoyalCyan.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 56.dp, bottom = 8.dp)
+                )
+            }
             SettingsSwitchItem(
                 icon = Icons.Default.Fingerprint,
                 title = "Proteção Biométrica",
@@ -179,6 +198,82 @@ fun SettingsScreen(
             )
         }
 
+        SettingsGroup("Bloqueio Geográfico") {
+            var dddInput by remember { mutableStateOf("") }
+            val blockedList by viewModel.blockedDDDs.collectAsState()
+
+            Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = dddInput,
+                        onValueChange = { if (it.length <= 2) dddInput = it },
+                        label = { Text("DDD (Ex: 11)", color = Color.Gray) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoyalCyan,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedTextColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            viewModel.addBlockedDDD(dddInput)
+                            dddInput = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalCyan),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("BLOQUEAR", color = VelvetBlack, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Chips para mostrar os DDDs já bloqueados
+                FlowRow(modifier = Modifier.padding(top = 12.dp)) {
+                    blockedList.forEach { ddd ->
+                        SuggestionChip(
+                            onClick = { viewModel.removeBlockedDDD(ddd) },
+                            label = { Text("DDD $ddd", color = RoyalCyan) },
+                            icon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp)) },
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        SettingsGroup("Modo Paranóico") {
+            SettingsSwitchItem(
+                icon = Icons.Default.Security,
+                title = "Ativar Modo Paranóico",
+                subtitle = "Bloquear números de fora do seu DDD (exceto contactos)",
+                checked = paranoidMode,
+                onCheckedChange = { viewModel.toggleParanoidMode(it) }
+            )
+
+            if (paranoidMode) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    OutlinedTextField(
+                        value = localDDD,
+                        onValueChange = { viewModel.setUserLocalDDD(it) },
+                        label = { Text("O Seu DDD Local", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoyalCyan,
+                            focusedTextColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Text(
+                        "Chamadas de outros DDDs serão barradas se não estiverem na agenda.",
+                        color = RoyalCyan.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
         // 5. AÇÕES CRÍTICAS
         SettingsGroup("Ações Críticas") {
             // Botão de Limpeza Total Premium

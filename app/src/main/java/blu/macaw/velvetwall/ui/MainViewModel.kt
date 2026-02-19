@@ -4,13 +4,12 @@ import android.app.Application
 import android.app.NotificationManager
 import android.app.role.RoleManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -20,17 +19,17 @@ import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import blu.macaw.velvetwall.data.WhiteListNumber
 import blu.macaw.velvetwall.data.worker.CleanupWorker
+import blu.macaw.velvetwall.utils.NotificationHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import androidx.work.Constraints
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
 
 class MainViewModel(
     application: Application,
@@ -51,6 +50,11 @@ class MainViewModel(
         }
     }
 
+    val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptySet()
+    )
     // Lists
     val blacklist = repository.blacklist
     val whitelist = repository.whitelist // <--- Nova lista
@@ -208,34 +212,69 @@ class MainViewModel(
         }
     }
 
+    // Dentro do seu MainViewModel (que agora é AndroidViewModel)
     fun triggerTestNotification() {
         viewModelScope.launch {
             try {
-                // Simulamos os dados de uma chamada bloqueada para o teste
-                val testNumber = "+55 (11) 99999-9999"
-                val testReason = "Teste de Proteção Velvet Wall"
+                // Instancia o Helper usando o Application Context
+                val notificationHelper = NotificationHelper(getApplication())
 
-                // Aqui chamamos a função que você já refatorou no Service
-                // Certifique-se de que o ViewModel tem acesso à instância do serviço ou via Intent
-                sendTestBroadcast(testNumber, testReason)
+                notificationHelper.showNotification(
+                    number = "+55 (11) 99999-9999",
+                    reason = "Teste Blu Macaw Lab's",
+                    isTest = true
+                )
             } catch (e: Exception) {
-                Log.e("VelvetWall", "Erro ao disparar teste: ${e.message}")
+                // Tratar erro se necessário
+            }
+        }
+    }
+    fun addBlockedDDD(ddd: String) {
+        if (ddd.length == 2 && ddd.all { it.isDigit() }) {
+            viewModelScope.launch {
+                userSettings.saveDDD(ddd)
             }
         }
     }
 
-    // Função auxiliar para disparar o teste via Broadcast (caso o serviço seja isolado)
-    private fun sendTestBroadcast(number: String, reason: String) {
-        val intent = Intent("blu.macaw.velvetwall.ACTION_TEST_BLOCK").apply {
-            // Especificamos o pacote para maior segurança (Explicit Intent)
-            setPackage(context.packageName)
-            putExtra("number", number)
-            putExtra("reason", reason)
+    fun removeBlockedDDD(ddd: String) {
+        viewModelScope.launch {
+            userSettings.removeDDD(ddd)
         }
-        // Agora o context.sendBroadcast funcionará perfeitamente!
-        context.sendBroadcast(intent)
     }
 
+    val paranoidModeEnabled = userSettings.paranoidModeFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), false
+    )
+
+    val userLocalDDD = userSettings.userLocalDDDFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), ""
+    )
+
+    fun toggleParanoidMode(enabled: Boolean) {
+        viewModelScope.launch { userSettings.setParanoidMode(enabled) }
+    }
+
+    fun setUserLocalDDD(ddd: String) {
+        // Permite digitar ATÉ 2 dígitos. Assim você consegue digitar o primeiro!
+        if (ddd.length <= 2 && ddd.all { it.isDigit() }) {
+            viewModelScope.launch {
+                userSettings.saveUserLocalDDD(ddd)
+            }
+        }
+    }
+    val stealthModeEnabled = userSettings.stealthModeFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false // O app começa assumindo que não é stealth até ler o dado
+    )
+
+    fun toggleStealthMode(enabled: Boolean) {
+        viewModelScope.launch {
+            // Chama a função de persistência que criamos no UserSettings
+            userSettings.setStealthMode(enabled)
+        }
+    }
 }
 
 // Factory (igual)
