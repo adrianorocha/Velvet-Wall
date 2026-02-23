@@ -1,5 +1,6 @@
 package blu.macaw.velvetwall.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.data.BlockedNumber
+import blu.macaw.velvetwall.ui.DarkBg
 import blu.macaw.velvetwall.ui.MainViewModel
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
@@ -115,7 +118,6 @@ fun BlacklistScreen(viewModel: MainViewModel) {
         }
     }
 }
-
 @Composable
 fun BlacklistItem(item: BlockedNumber,
                   onDelete: () -> Unit,

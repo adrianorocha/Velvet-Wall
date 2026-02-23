@@ -265,4 +265,9 @@ class CallBlockerService : CallScreeningService() {
             .setGroupSummary(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setColor(accentColor)
-            .build
+            .build()
+
+        notificationManager.notify(currentTimeMillis.toInt(), individualBuilder)
+        notificationManager.notify(SUMMARY_ID, summaryBuilder)
+    }
+}

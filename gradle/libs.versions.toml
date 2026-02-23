@@ -36,6 +36,8 @@ roomKtx = "2.8.4"
 navigationComposeVersion = "2.9.7"
 androidxFoundation = "1.10.2"
 runtimeVersion = "1.10.3"
+animationCoreVersion = "1.10.3"
+androidxFoundationVersion = "1.10.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -77,6 +79,8 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationComposeVersion" }
 foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundation" }
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
+androidx-animation-core = { group = "androidx.compose.animation", name = "animation-core", version.ref = "animationCoreVersion" }
+androidx-compose-foundation-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundationVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

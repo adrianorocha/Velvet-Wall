@@ -1,259 +1,315 @@
 package blu.macaw.velvetwall.ui
 
-//import blu.macaw.velvetwall.ui.screens.HistoryScreen
-import android.app.NotificationManager
+import android.annotation.SuppressLint
+import android.Manifest.permission
+import android.app.Activity
 import android.app.role.RoleManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.text.format.DateUtils
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.GppBad
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.service.components.HelpScreen
-import blu.macaw.velvetwall.ui.screens.BlacklistScreen
-import blu.macaw.velvetwall.ui.screens.HomeScreen
-import blu.macaw.velvetwall.ui.screens.SettingsScreen
-import blu.macaw.velvetwall.ui.screens.WhitelistScreen
-import blu.macaw.velvetwall.ui.theme.RoyalCyan
-import blu.macaw.velvetwall.ui.theme.VelvetBlack
-import blu.macaw.velvetwall.ui.theme.VelvetDark
+import blu.macaw.velvetwall.ui.screens.*
+import blu.macaw.velvetwall.ui.theme.*
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.net.Uri
-import android.provider.Settings // Para o ACTION_APPLICATION_DETAILS_SETTINGS
+import java.util.jar.Manifest
 
-// Cores Premium
 val DarkBg = Color(0xFF0F172A)
 val CyanAccent = Color(0xFF38BDF8)
-
-val importance = NotificationManager.IMPORTANCE_HIGH
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun VelvetAppNavigation(
     viewModel: MainViewModel = viewModel(),
-    startDestination: String = "home")
-{
+    startDestination: String = "home"
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
+    val context = LocalContext.current
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar(containerColor = DarkBg) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { navController.navigate("home") },
-                    icon = { Icon(Icons.Default.Shield, null) },
-                    label = { Text("Escudo") }
-                )
-                NavigationBarItem(
-                    selected = currentRoute == "blacklist",
-                    onClick = {
-                        navController.navigate("blacklist") {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Block, null) },
-                    label = { Text("Lista") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = VelvetBlack,
-                        selectedTextColor = RoyalCyan,
-                        indicatorColor = RoyalCyan,
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { navController.navigate("history") },
-                    icon = { Icon(Icons.Default.History, null) },
-                    label = { Text("Logs") }
-                )
+    // --- GESTÃO DE FATURAMENTO E TRIAL ---
+    val isPremium by viewModel.isPremiumEnabled.collectAsState()
+    val trialStart by viewModel.trialStartTimestamp.collectAsState()
+    var showPaywall by remember { mutableStateOf(false) }
 
-                NavigationBarItem(
-                    selected = currentRoute == "settings",
-                    onClick = {
-                        navController.navigate("settings") {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Settings, null) },
-                    label = { Text("Ajustes") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = VelvetBlack,
-                        selectedTextColor = RoyalCyan,
-                        indicatorColor = RoyalCyan,
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
+    // Gatilho Automático: Se o trial de 7 dias expirou e não é PRO, sobe o Paywall
+    LaunchedEffect(isPremium, trialStart) {
+        val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
+        val currentTime = System.currentTimeMillis()
 
-                NavigationBarItem(
-                    selected = currentRoute == "whitelist",
-                    onClick = {
-                        navController.navigate("whitelist") {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.ThumbUp, null) },
-                    label = { Text("Permitir") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = VelvetBlack,
-                        selectedTextColor = RoyalCyan,
-                        indicatorColor = RoyalCyan,
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
+        if (!isPremium && trialStart > 0 && (currentTime - trialStart) > sevenDaysInMillis) {
+            delay(1500) // Aguarda o app estabilizar antes de oferecer o upgrade
+            showPaywall = true
+        }
+    }
+
+    // Box Raiz para permitir a sobreposição da animação de Slide Up
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // 1. CONTEÚDO PRINCIPAL (SCAFFOLD)
+        Scaffold(
+            bottomBar = {
+                NavigationBar(containerColor = DarkBg) {
+                    val items = listOf(
+                        NavigationItem("home", "Escudo", Icons.Default.Shield),
+                        NavigationItem("blacklist", "Lista", Icons.Default.Block),
+                        NavigationItem("history", "Logs", Icons.Default.History),
+                        NavigationItem("settings", "Ajustes", Icons.Default.Settings),
+                        NavigationItem("whitelist", "Permitir", Icons.Default.ThumbUp)
                     )
-                )
+
+                    items.forEach { item ->
+                        val isSelected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = VelvetBlack,
+                                selectedTextColor = RoyalCyan,
+                                indicatorColor = RoyalCyan,
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray
+                            )
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.padding(padding)
+            ) {
+                composable("home") { HomeScreen(viewModel) }
+                composable("blacklist") { BlacklistScreen(viewModel) }
+                composable("history") { HistoryScreen(viewModel) }
+                composable("settings") {
+                    SettingsScreen(viewModel, onNavigateToHelp = { navController.navigate("help") })
+                }
+                composable("whitelist") { WhitelistScreen(viewModel) }
+                composable("help") {
+                    HelpScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                        onOpenSettings = {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        }
+                    )
+                }
             }
         }
-    ) { padding ->
-        NavHost(navController, startDestination = startDestination, modifier = Modifier.padding(padding)) {
-            composable("home") { HomeScreen(viewModel) }
-            composable("blacklist") { BlacklistScreen(viewModel) }
-            composable("history") { HistoryScreen(viewModel) }
 
-            composable("settings") {
-                SettingsScreen(
-                    viewModel,
-                    onNavigateToHelp = { navController.navigate("help") })
-            }
-            composable("whitelist") { WhitelistScreen(viewModel) }
-            composable("help") {
-                val context = LocalContext.current // Captura o contexto da UI
-                HelpScreen(
-                    viewModel = viewModel, // Certifique-se que o parâmetro existe na função abaixo
-                    onBack = { navController.popBackStack() },
-                    onOpenSettings = {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
-                    }
-                )
-            }
+        // 2. A "MÁGICA" DO SLIDE UP (PAYWALL)
+        AnimatedVisibility(
+            visible = showPaywall,
+            enter = slideInVertically(
+                initialOffsetY = { fullHeight -> fullHeight }, // Inicia do fundo da tela
+                animationSpec = tween(durationMillis = 600)
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { fullHeight -> fullHeight }, // Volta para o fundo
+                animationSpec = tween(durationMillis = 500)
+            ),
+            modifier = Modifier.zIndex(10f) // Garante que sobreponha a BottomBar
+        ) {
+            val activity = context as? Activity
+            PaywallScreen(
+                onBuyClick = { activity?.let { viewModel.buyPremium(it) } },
+                onRestoreClick = { viewModel.restorePremium() },
+                onCloseClick = { showPaywall = false }
+            )
         }
     }
 }
 
+/**
+ * Modelo de dados para itens de navegação, mantendo o código limpo.
+ */
+data class NavigationItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     val isEnabled by viewModel.isServiceActive.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val blockMessage by viewModel.blockEvent.collectAsState(initial = "")
 
-    // Launcher para pedir permissão de Role
     val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.checkRoleStatus(context)
     }
 
+    val permissionsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        if (permissions.values.all { it }) {
+            Toast.makeText(context, "Proteção Total Ativada!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(blockMessage) {
+        if (blockMessage.isNotEmpty()) {
+            snackbarHostState.showSnackbar(blockMessage, duration = SnackbarDuration.Short)
+        }
+    }
+
     LaunchedEffect(Unit) { viewModel.checkRoleStatus(context) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(DarkBg),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.GppBad,
-            contentDescription = null,
-            tint = if (isEnabled) CyanAccent else Color.Gray,
-            modifier = Modifier.size(120.dp)
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            if (isEnabled) "VELVET WALL ATIVO" else "PROTEÇÃO DESATIVADA",
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White
-        )
-        Spacer(Modifier.height(48.dp))
-        Button(
-            onClick = {
-                val roleManager = context.getSystemService(RoleManager::class.java)
-                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
-                roleLauncher.launch(intent)
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent)
+    fun hasAllPermissions(): Boolean {
+        val contactPerm = ContextCompat.checkSelfPermission(context, permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        val notifPerm = if (Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(context, permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
+        return contactPerm && notifPerm
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) { data ->
+            Snackbar(containerColor = Color(0xFF1E293B), contentColor = RoyalCyan, snackbarData = data)
+        }},
+        containerColor = VelvetBlack
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("Configurar Permissões", color = DarkBg)
+            Box(contentAlignment = Alignment.Center) {
+                if (isEnabled) {
+                    Surface(Modifier.size(160.dp), shape = CircleShape, color = RoyalCyan.copy(alpha = 0.1f)) {}
+                }
+                Icon(
+                    imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.GppBad,
+                    contentDescription = null,
+                    tint = if (isEnabled) RoyalCyan else Color.Gray,
+                    modifier = Modifier.size(120.dp)
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Text(
+                if (isEnabled) "VELVET WALL ATIVO" else "PROTEÇÃO DESATIVADA",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            Text(
+                if (isEnabled) "Sua privacidade está blindada pela Blu Macaw."
+                else "Conceda as permissões para iniciar o bloqueio inteligente.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp, bottom = 48.dp)
+            )
+
+// BOTÃO DE AÇÃO PREMIUM
+            Button(
+                onClick = {
+                    val roleManager = context.getSystemService(RoleManager::class.java)
+
+                    when {
+                        // 1. O app ainda não é o gerenciador de chamadas padrão
+                        roleManager != null && !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
+                                roleLauncher.launch(intent)
+                            }
+                        }
+
+                        // 2. É padrão, mas faltam as permissões de execução (Contatos/Notif)
+                        !hasAllPermissions() -> {
+                            val perms = mutableListOf(
+                                permission.READ_CONTACTS,
+                                permission.READ_PHONE_STATE,
+                                permission.ANSWER_PHONE_CALLS
+                            )
+                            if (Build.VERSION.SDK_INT >= 33) perms.add(permission.POST_NOTIFICATIONS)
+
+                            permissionsLauncher.launch(perms.toTypedArray())
+                        }
+
+                        // 3. Tudo configurado: Oferece gerenciar no sistema
+                        else -> {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isEnabled) Color.Transparent else RoyalCyan),
+                border = if (isEnabled) BorderStroke(1.dp, RoyalCyan) else null
+            ) {
+                if (isEnabled) {
+                    Icon(Icons.Default.CheckCircle, null, tint = RoyalCyan, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("REVISAR PROTEÇÃO", color = RoyalCyan, fontWeight = FontWeight.Bold)
+                } else {
+                    Text("ATIVAR ESCUDO VELVET", color = VelvetBlack, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
-
-@Composable
+/*@Composable
 fun BlacklistScreen(viewModel: MainViewModel) {
     // Coleta a lista do banco de dados
     val blacklist by viewModel.blacklist.collectAsState(initial = emptyList())
@@ -300,7 +356,7 @@ fun BlacklistScreen(viewModel: MainViewModel) {
             }
         }
     }
-}
+}*/
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 fun HistoryScreen(viewModel: MainViewModel) {
@@ -503,3 +559,4 @@ fun DecisionDialog(
         shape = RoundedCornerShape(16.dp)
     )
 }
+

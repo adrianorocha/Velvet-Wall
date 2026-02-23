@@ -20,15 +20,22 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            ndk {
+                debugSymbolLevel = "full"
+            }
+            isMinifyEnabled = true
+
+            // Enables resource shrinking.
+            isShrinkResources = true
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -88,6 +95,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.7.0")
     implementation(libs.androidx.runtime)
     implementation("com.android.billingclient:billing-ktx:7.0.0")
+    implementation(libs.androidx.animation.core)
+    implementation(libs.androidx.compose.foundation.foundation)
 
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation(libs.junit)

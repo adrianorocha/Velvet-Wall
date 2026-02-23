@@ -83,4 +83,28 @@ class BillingHelper(private val context: Context, private val userSettings: User
             }
         }
     }
+
+    /**
+     * Consulta as compras existentes para restaurar o acesso PRO.
+     */
+    fun restorePurchases() {
+        val params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+
+        billingClient.queryPurchasesAsync(params) { billingResult, purchases ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                for (purchase in purchases) {
+                    // Se encontrar o ID da nossa licença vitalícia e a compra estiver confirmada
+                    if (purchase.products.contains("velvet_wall_pro_lifetime") &&
+                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            userSettings.setPremium(true) // Reativa o acesso PRO
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
