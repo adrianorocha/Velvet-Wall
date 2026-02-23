@@ -13,7 +13,7 @@ import android.os.Vibrator
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallScreeningService
-import android.telephony.PhoneNumberUtils
+import android.telephony.PhoneNumberUtils.isEmergencyNumber
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
@@ -22,7 +22,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import blu.macaw.velvetwall.R
 import blu.macaw.velvetwall.data.AppDatabase
-import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +35,7 @@ private const val GROUP_KEY_BLOCKS = "blu.macaw.velvetwall.BLOCK_GROUP"
 private const val SUMMARY_ID = 0
 private val lastBlockTimes = mutableMapOf<String, Long>()
 
+@Suppress("DEPRECATION")
 class CallBlockerService : CallScreeningService() {
 
     private val repository by lazy {
@@ -52,10 +52,12 @@ class CallBlockerService : CallScreeningService() {
         val rawNumber = callDetails.handle?.schemeSpecificPart ?: ""
         val normalizedNumber = rawNumber.replace(Regex("[^0-9]"), "")
 
-        // Rodamos TUDO dentro de uma única corrotina para evitar respostas duplas ao sistema
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 1. Carregar preferências uma única vez (Performance Blu Macaw!)
+                // 1. Carregar preferências e Status de Faturamento
+                val isPremium = userSettings.isPremiumFlow.first()
+                val isFeatureAllowed = userSettings.isFeatureAllowed() // Verifica Trial ou Premium
+
                 val isParanoidActive = userSettings.paranoidModeFlow.first()
                 val myDDD = userSettings.userLocalDDDFlow.first()
                 val blockPrivate = userSettings.blockPrivateFlow.first()
@@ -64,35 +66,60 @@ class CallBlockerService : CallScreeningService() {
 
                 var shouldBlock = false
                 var blockReason = ""
+                var isTrialFeature = false // Marca se o bloqueio depende da degustação
 
                 // 2. Identificação básica
                 val isHidden = rawNumber.isEmpty() || rawNumber.isBlank() || rawNumber.equals("private", ignoreCase = true)
                 val incomingDDD = extractDDD(normalizedNumber)
                 val isContact = if (!isHidden) isContact(applicationContext, rawNumber) else false
 
-                // 3. Hierarquia de Bloqueio
+                // 3. Hierarquia de Bloqueio com Lógica de Vendas
                 when {
-                    // Emergência e Whitelist SEMPRE passam
                     isEmergencyOrUtility(applicationContext, rawNumber, normalizedNumber) ||
                             repository.isWhitelisted(normalizedNumber) -> {
                         respondToCall(callDetails, CallResponse.Builder().build())
                         return@launch
                     }
-                    // Casos de Bloqueio
-                    isHidden && blockPrivate -> { shouldBlock = true; blockReason = "Número Privado" }
-                    repository.shouldBlockCall(normalizedNumber) -> { shouldBlock = true; blockReason = "Lista Negra" }
-                    incomingDDD != null && blockedDDDs.contains(incomingDDD) -> { shouldBlock = true; blockReason = "DDD $incomingDDD Bloqueado" }
-                    isParanoidActive && myDDD.isNotEmpty() && !isContact && incomingDDD != myDDD -> { shouldBlock = true; blockReason = "Modo Paranóico" }
-                    blockUnknown && !isHidden && !isContact -> { shouldBlock = true; blockReason = "Fora da Agenda" }
+
+                    // Lista Negra (Recurso Free)
+                    repository.shouldBlockCall(normalizedNumber) -> {
+                        shouldBlock = true; blockReason = "Lista Negra"
+                    }
+
+                    // DDD Bloqueado (Recurso de Degustação)
+                    incomingDDD != null && blockedDDDs.contains(incomingDDD) -> {
+                        shouldBlock = true; blockReason = "DDD $incomingDDD Bloqueado"; isTrialFeature = true
+                    }
+
+                    // Modo Paranóico (Recurso de Degustação)
+                    isParanoidActive && myDDD.isNotEmpty() && !isContact && incomingDDD != myDDD -> {
+                        shouldBlock = true; blockReason = "Modo Paranóico"; isTrialFeature = true
+                    }
+
+                    // Desconhecidos (Recurso de Degustação)
+                    blockUnknown && !isHidden && !isContact -> {
+                        shouldBlock = true; blockReason = "Fora da Agenda"; isTrialFeature = true
+                    }
+
+                    // Número Privado (Recurso Free)
+                    isHidden && blockPrivate -> {
+                        shouldBlock = true; blockReason = "Número Privado"
+                    }
                 }
 
-                // 4. Execução Final
+                // 4. Execução Final com Filtro de Monetização
                 if (shouldBlock) {
-                    // blockAndNotify cuida do Stealth e do toggle de Notificações
-                    blockAndNotify(callDetails, rawNumber.ifEmpty { "Privado" }, blockReason)
+                    if (isTrialFeature && !isFeatureAllowed) {
+                        // Trial expirou: Avisa o usuário mas NÃO bloqueia a chamada (Gatilho de Perda)
+                        showUpsellNotification(rawNumber.ifEmpty { "Privado" }, blockReason)
+                        respondToCall(callDetails, CallResponse.Builder().build())
+                    } else {
+                        // Se for a primeira vez usando Trial, iniciamos o contador agora
+                        if (isTrialFeature && !isPremium) userSettings.startTrialIfNecessary()
 
-                    // Grava o log para o seu Relatório de Eficácia
-                    repository.logBlockedCall(rawNumber.ifEmpty { "Privado" }, blockReason)
+                        blockAndNotify(callDetails, rawNumber.ifEmpty { "Privado" }, blockReason)
+                        repository.logBlockedCall(rawNumber.ifEmpty { "Privado" }, blockReason)
+                    }
                 } else {
                     respondToCall(callDetails, CallResponse.Builder().build())
                 }
@@ -101,17 +128,22 @@ class CallBlockerService : CallScreeningService() {
             }
         }
     }
+
     private fun blockAndNotify(callDetails: Call.Details, number: String, reason: String) {
+        val isPremium = runBlocking { userSettings.isPremiumFlow.first() }
         val isStealthActive = runBlocking { userSettings.stealthModeFlow.first() }
         val isNotifEnabled = runBlocking { userSettings.notificationsFlow.first() }
 
-        // 1. Lógica de Vibração no Modo Stealth
-        if (isStealthActive) {
+        // O Modo Stealth é exclusivo para quem é PREMIUM
+        val actuallyStealth = isStealthActive && isPremium
+
+        if (actuallyStealth) {
             triggerHapticFeedback()
         }
 
-        // 2. Lógica de Notificação Visual
-        if (!isStealthActive && isNotifEnabled) {
+        // Se o usuário ativou Stealth mas não é Premium, ele recebe a notificação normal
+        // para ser lembrado de que precisa do PRO para a invisibilidade total.
+        if (!actuallyStealth && isNotifEnabled) {
             showNotification(number, reason)
         }
 
@@ -119,58 +151,59 @@ class CallBlockerService : CallScreeningService() {
             .setDisallowCall(true)
             .setRejectCall(true)
             .setSkipCallLog(false)
-            .setSkipNotification(true)
+            .setSkipNotification(actuallyStealth)
             .build()
 
         respondToCall(callDetails, response)
     }
 
+    private fun showUpsellNotification(number: String, reason: String) {
+        // Notificação especial para converter o usuário
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "BLOCK_EVENTS_CHANNEL"
+
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_shield_large)
+            .setContentTitle("Spam Detectado: $number")
+            .setContentText("O Trial do $reason expirou. Ative o PRO para barrar!")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setColor(Color.parseColor("#FACC15")) // Amarelo para atenção
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), builder)
+    }
+
+    // --- MANTIDAS AS FUNÇÕES AUXILIARES SEM ALTERAÇÃO ---
+    @SuppressLint("ObsoleteSdkInt")
     private fun triggerHapticFeedback() {
         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Um "clique" rápido e firme
                 vibrator.vibrate(VibrationEffect.createOneShot(70, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
-                // Retrocompatibilidade
                 vibrator.vibrate(70)
             }
         }
     }
+
     private fun isEmergencyOrUtility(context: Context, rawNumber: String, normNumber: String): Boolean {
-        if (PhoneNumberUtils.isEmergencyNumber(rawNumber)) return true
-
-        val safeList = setOf(
-            "100", "180", "181", "190", "191", "192", "193",
-            "194", "197", "198", "199", "153", "112", "911"
-        )
-
-        return safeList.any { safeNum ->
-            normNumber == safeNum || normNumber.endsWith(safeNum)
-        }
+        if (isEmergencyNumber(rawNumber)) return true
+        val safeList = setOf("100", "180", "181", "190", "191", "192", "193", "194", "197", "198", "199", "153", "112", "911")
+        return safeList.any { safeNum -> normNumber == safeNum || normNumber.endsWith(safeNum) }
     }
 
     private fun hasContactPermission(context: Context): Boolean {
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_CONTACTS
-        ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isContact(context: Context, number: String): Boolean {
         if (number.isBlank()) return false
         try {
-            val uri = Uri.withAppendedPath(
-                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                Uri.encode(number)
-            )
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
             val projection = arrayOf(ContactsContract.PhoneLookup._ID)
-            context.contentResolver.query(uri, projection, null, null, null)?.use {
-                if (it.moveToFirst()) return true
-            }
-        } catch (e: Exception) {
-            Log.e("VELVET_SRV", "Erro contato: $e")
-        }
+            context.contentResolver.query(uri, projection, null, null, null)?.use { if (it.moveToFirst()) return true }
+        } catch (e: Exception) { Log.e("VELVET_SRV", "Erro contato: $e") }
         return false
     }
 
@@ -184,21 +217,21 @@ class CallBlockerService : CallScreeningService() {
     private fun showNotification(number: String, reason: String) {
         val channelId = "BLOCK_EVENTS_CHANNEL"
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
         val currentTimeMillis = System.currentTimeMillis()
         val calendar = Calendar.getInstance()
         val hour = calendar.get(Calendar.HOUR_OF_DAY)
 
-        // 1. Silenciamento Inteligente
         val lastTime = lastBlockTimes[number] ?: 0L
         val isSpamming = (currentTimeMillis - lastTime) < 60000
         lastBlockTimes[number] = currentTimeMillis
 
-        // 2. Lógica de Modo Noturno
+        // Silenciamento Noturno também é influenciado pela permissão de Trial
         val isNightModeSettingEnabled = runBlocking { userSettings.nightModeFlow.first() }
-        val applyNightSilence = isNightModeSettingEnabled && (hour >= 22 || hour < 6)
+        val isTrialAllowed = runBlocking { userSettings.isFeatureAllowed() }
 
-        // 3. Cores e Risco
+        // Se o Trial expirou, o app ignora o modo noturno para "incomodar" e incentivar a compra
+        val applyNightSilence = isNightModeSettingEnabled && (hour >= 22 || hour < 6) && isTrialAllowed
+
         val isHighRisk = reason.contains("Blacklist", ignoreCase = true) || reason.contains("Spam", ignoreCase = true)
         val accentColor = if (isHighRisk) Color.parseColor("#EF4444") else ContextCompat.getColor(this, R.color.royal_cyan)
 
@@ -232,9 +265,4 @@ class CallBlockerService : CallScreeningService() {
             .setGroupSummary(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setColor(accentColor)
-            .build()
-
-        notificationManager.notify(currentTimeMillis.toInt(), individualBuilder)
-        notificationManager.notify(SUMMARY_ID, summaryBuilder)
-    }
-}
+            .build

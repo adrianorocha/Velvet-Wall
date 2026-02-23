@@ -87,7 +87,7 @@ dependencies {
     implementation(libs.foundation)
     implementation("androidx.compose.foundation:foundation:1.7.0")
     implementation(libs.androidx.runtime)
-
+    implementation("com.android.billingclient:billing-ktx:7.0.0")
 
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation(libs.junit)

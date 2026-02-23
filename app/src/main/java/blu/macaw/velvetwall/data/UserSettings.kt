@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 // Cria a instância única do DataStore para o app
@@ -14,6 +15,9 @@ class UserSettings(private val context: Context) {
 
     // Definindo as chaves
     companion object {
+        val TRIAL_START_TIMESTAMP = longPreferencesKey("trial_start_timestamp")
+
+        val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val BLOCK_PRIVATE = booleanPreferencesKey("block_private")
         val BLOCK_UNKNOWN = booleanPreferencesKey("block_unknown")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
@@ -27,6 +31,10 @@ class UserSettings(private val context: Context) {
     }
 
     // --- LEITURA (Flows que atualizam a tela e o serviço automaticamente) ---
+    // Fluxos de leitura
+    val isPremiumFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_PREMIUM] ?: false }
+
+    val trialStartFlow: Flow<Long> = context.dataStore.data.map { it[TRIAL_START_TIMESTAMP] ?: 0L }
     val blockPrivateFlow: Flow<Boolean> = context.dataStore.data.map { it[BLOCK_PRIVATE] ?: true }
     val blockUnknownFlow: Flow<Boolean> = context.dataStore.data.map { it[BLOCK_UNKNOWN] ?: false }
     val notificationsFlow: Flow<Boolean> = context.dataStore.data.map { it[NOTIFICATIONS_ENABLED] ?: true }
@@ -87,5 +95,30 @@ class UserSettings(private val context: Context) {
             val currentSet = preferences[BLOCKED_DDDS_KEY] ?: emptySet()
             preferences[BLOCKED_DDDS_KEY] = currentSet - ddd
         }
+    }
+
+    // Funções de escrita
+    suspend fun setPremium(enabled: Boolean) = context.dataStore.edit { it[IS_PREMIUM] = enabled }
+
+    suspend fun startTrialIfNecessary() {
+        context.dataStore.edit { pref ->
+            if ((pref[TRIAL_START_TIMESTAMP] ?: 0L) == 0L) {
+                pref[TRIAL_START_TIMESTAMP] = System.currentTimeMillis()
+            }
+        }
+    }
+
+    suspend fun isFeatureAllowed(): Boolean {
+        val isPremium = isPremiumFlow.first()
+        if (isPremium) return true // Usuário PRO tem acesso total
+
+        val trialStart = trialStartFlow.first()
+        if (trialStart == 0L) return true // Trial ainda não começou, liberado por enquanto
+
+        val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
+        val currentTime = System.currentTimeMillis()
+
+        // Retorna TRUE se ainda estiver dentro dos 7 dias de degustação
+        return (currentTime - trialStart) < sevenDaysInMillis
     }
 }

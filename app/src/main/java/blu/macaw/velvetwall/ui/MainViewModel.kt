@@ -1,5 +1,6 @@
 package blu.macaw.velvetwall.ui
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationManager
 import android.app.role.RoleManager
@@ -19,6 +20,7 @@ import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import blu.macaw.velvetwall.data.WhiteListNumber
 import blu.macaw.velvetwall.data.worker.CleanupWorker
+import blu.macaw.velvetwall.utils.BillingHelper
 import blu.macaw.velvetwall.utils.NotificationHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,8 +38,9 @@ class MainViewModel(
     private val repository: CallRepository,
     private val userSettings: UserSettings
 ) : AndroidViewModel(application) {
-
+    private val billingHelper = BillingHelper(application, userSettings)
     init {
+        billingHelper.startConnection()
         // Observa o histórico. Sempre que mudar, pegamos o último e notificamos a UI
         viewModelScope.launch {
             repository.callLogs.collect { logs ->
@@ -49,7 +52,9 @@ class MainViewModel(
             }
         }
     }
-
+    fun buyPremium(activity: Activity) {
+        billingHelper.launchPurchaseFlow(activity)
+    }
     val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
