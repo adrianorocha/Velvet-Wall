@@ -20,8 +20,8 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -82,7 +82,6 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.2.2")
     implementation(libs.androidx.foundation.layout)
     implementation("androidx.compose.material:material-icons-extended:1.4.3")
-    implementation("androidx.biometric:biometric:1.2.0-alpha04")
     implementation(libs.androidx.appcompat)
     implementation("androidx.compose.material3:material3:1.0.0")
     implementation(libs.androidx.compose.animation.core)
@@ -97,6 +96,7 @@ dependencies {
     implementation("com.android.billingclient:billing-ktx:7.0.0")
     implementation(libs.androidx.animation.core)
     implementation(libs.androidx.compose.foundation.foundation)
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
 
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation(libs.junit)

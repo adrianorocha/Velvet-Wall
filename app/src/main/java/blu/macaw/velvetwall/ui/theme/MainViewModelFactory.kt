@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
-import blu.macaw.velvetwall.ui.MainViewModel
+import blu.macaw.velvetwall.MainViewModel
 
 // Factory
 class MainViewModelFactory(

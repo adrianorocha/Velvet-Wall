@@ -1,4 +1,4 @@
-package blu.macaw.velvetwall.ui
+package blu.macaw.velvetwall
 
 import android.app.Activity
 import android.app.Application
@@ -6,14 +6,28 @@ import android.app.NotificationManager
 import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
-import androidx.lifecycle.*
-import androidx.work.*
-import blu.macaw.velvetwall.data.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import blu.macaw.velvetwall.data.BlockedCallLog
+import blu.macaw.velvetwall.data.BlockedNumber
+import blu.macaw.velvetwall.data.CallRepository
+import blu.macaw.velvetwall.data.UserSettings
+import blu.macaw.velvetwall.data.WhiteListNumber
 import blu.macaw.velvetwall.data.worker.CleanupWorker
 import blu.macaw.velvetwall.utils.BillingHelper
 import blu.macaw.velvetwall.utils.NotificationHelper
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -36,14 +50,14 @@ class MainViewModel(
      */
     val isPremiumEnabled: StateFlow<Boolean> = userSettings.isPremiumFlow.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Companion.WhileSubscribed(5000),
         initialValue = false
     )
 
     val showSuccess: StateFlow<Boolean> = userSettings.showSuccess
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Companion.WhileSubscribed(5000),
             initialValue = false
         )
     /**
@@ -51,7 +65,7 @@ class MainViewModel(
      */
     val trialStartTimestamp: StateFlow<Long> = userSettings.trialStartFlow.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Companion.WhileSubscribed(5000),
         initialValue = 0L
     )
 
@@ -90,7 +104,7 @@ class MainViewModel(
     }
 
     // --- GESTÃO DE LISTAS E HISTÓRICO ---
-    val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), emptySet())
     val blacklist = repository.blacklist
     val whitelist = repository.whitelist
     val history = repository.callLogs
@@ -100,11 +114,11 @@ class MainViewModel(
     val blockUnknown = userSettings.blockUnknownFlow
     val notificationsEnabled = userSettings.notificationsFlow
     val biometricEnabled = userSettings.biometricFlow
-    val nightModeEnabled = userSettings.nightModeFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-    val paranoidModeEnabled = userSettings.paranoidModeFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val stealthModeEnabled = userSettings.stealthModeFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val userLocalDDD = userSettings.userLocalDDDFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-    val cleanupDays = userSettings.cleanupDaysFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 30)
+    val nightModeEnabled = userSettings.nightModeFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), true)
+    val paranoidModeEnabled = userSettings.paranoidModeFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), false)
+    val stealthModeEnabled = userSettings.stealthModeFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), false)
+    val userLocalDDD = userSettings.userLocalDDDFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), "")
+    val cleanupDays = userSettings.cleanupDaysFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), 30)
 
     private val _isServiceActive = MutableStateFlow(false)
     val isServiceActive: StateFlow<Boolean> = _isServiceActive.asStateFlow()
@@ -186,7 +200,7 @@ class MainViewModel(
             .setConstraints(constraints)
             .addTag("log_cleanup")
             .build()
-        WorkManager.getInstance(getApplication()).enqueueUniquePeriodicWork("VelvetCleanup", ExistingPeriodicWorkPolicy.REPLACE, cleanupRequest)
+        WorkManager.Companion.getInstance(getApplication()).enqueueUniquePeriodicWork("VelvetCleanup", ExistingPeriodicWorkPolicy.REPLACE, cleanupRequest)
     }
 
     fun triggerTestNotification() = viewModelScope.launch {

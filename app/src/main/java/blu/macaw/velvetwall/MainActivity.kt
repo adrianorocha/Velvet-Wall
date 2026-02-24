@@ -22,7 +22,7 @@ import blu.macaw.velvetwall.data.AppDatabase
 import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import blu.macaw.velvetwall.service.AppStatusService
-import blu.macaw.velvetwall.ui.MainViewModel
+import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.ui.VelvetAppNavigation
 import blu.macaw.velvetwall.ui.screens.VelvetSplashScreen
 import blu.macaw.velvetwall.ui.theme.MainViewModelFactory

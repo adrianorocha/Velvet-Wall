@@ -21,7 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import blu.macaw.velvetwall.ui.MainViewModel
+import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.ui.components.SettingsClickableItem
 import blu.macaw.velvetwall.ui.components.SettingsGroup
 import blu.macaw.velvetwall.service.components.SettingsSwitchItem

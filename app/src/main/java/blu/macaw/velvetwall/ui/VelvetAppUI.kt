@@ -93,6 +93,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.service.components.HelpScreen
 import blu.macaw.velvetwall.ui.screens.BlacklistScreen
@@ -106,7 +107,8 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
+import blu.macaw.velvetwall.utils.BiometricHelper
+import androidx.fragment.app.FragmentActivity
 val DarkBg = Color(0xFF0F172A)
 
 @RequiresApi(Build.VERSION_CODES.Q)
@@ -423,6 +425,21 @@ fun BlacklistScreen(viewModel: MainViewModel) {
 fun HistoryScreen(viewModel: MainViewModel) {
     val history by viewModel.history.collectAsState(initial = emptyList())
     var selectedLog by remember { mutableStateOf<BlockedCallLog?>(null) }
+    val context = LocalContext.current
+    val isPremium by viewModel.isPremiumEnabled.collectAsState()
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isPremium) {
+        if (isPremium && !isAuthenticated) {
+            val activity = context as? FragmentActivity
+            activity?.let {
+                BiometricHelper(it).showAuthPrompt(
+                    onSuccess = { isAuthenticated = true },
+                    onError = { /* Opcional: Voltar para a Home se falhar */ }
+                )
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
