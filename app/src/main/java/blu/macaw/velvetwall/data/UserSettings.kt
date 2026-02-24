@@ -129,5 +129,6 @@ class UserSettings(private val context: Context) {
         context.dataStore.edit { it[SHOW_SUCCESS] = show }
     }
 
-    val showSuccessFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_SUCCESS] ?: false }
+    val showSuccess: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[SHOW_SUCCESS] ?: false }
 }

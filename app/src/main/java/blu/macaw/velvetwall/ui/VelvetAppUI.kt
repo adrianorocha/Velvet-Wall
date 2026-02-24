@@ -127,6 +127,8 @@ fun VelvetAppNavigation(
 //    val trialStart by viewModel.trialStartTimestamp.collectAsState()
     var showPaywall by remember { mutableStateOf(false) }
 
+    val showSuccess by viewModel.showSuccess.collectAsState()
+
     // Gatilho Automático: Se o trial de 7 dias expirou e não é PRO, sobe o Paywall
     LaunchedEffect(isPremium, trialStart) {
         val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
@@ -231,7 +233,7 @@ fun VelvetAppNavigation(
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut()
         ) {
-            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccess() })
+            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccessAnimation() })
         }
     }
 }

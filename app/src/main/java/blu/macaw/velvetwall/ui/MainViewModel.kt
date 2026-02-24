@@ -40,6 +40,12 @@ class MainViewModel(
         initialValue = false
     )
 
+    val showSuccess: StateFlow<Boolean> = userSettings.showSuccess
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
     /**
      * Monitora o início da degustação para controle de Paywall.
      */
