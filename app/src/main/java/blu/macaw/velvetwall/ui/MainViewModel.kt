@@ -23,7 +23,11 @@ class MainViewModel(
     private val userSettings: UserSettings
 ) : AndroidViewModel(application) {
 
-    private val billingHelper = BillingHelper(application, userSettings)
+    private val billingHelper = BillingHelper(
+        context = application,
+        userSettings = userSettings,
+        onSuccess = { triggerSuccess() }
+    )
 
     // --- ESTADOS DE FATURAMENTO (BILLING) ---
 
@@ -44,6 +48,7 @@ class MainViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = 0L
     )
+
 
     init {
         // Conexão imediata com a Play Store para validação de licenças
@@ -195,5 +200,19 @@ class MainViewModel(
     }
     fun clearHistory() {
         viewModelScope.launch { repository.clearLogs() }
+    }
+
+    private val _showSuccessScreen = MutableStateFlow(false)
+
+    fun triggerSuccess() {
+        viewModelScope.launch {
+            userSettings.setShowSuccess(true) // Ativa a tela de confetes
+        }
+    }
+
+    fun dismissSuccessAnimation() {
+        viewModelScope.launch {
+            userSettings.setShowSuccess(false) // Fecha a tela
+        }
     }
 }

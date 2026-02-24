@@ -1,10 +1,8 @@
 package blu.macaw.velvetwall.ui
 
-import android.annotation.SuppressLint
 import android.Manifest.permission
 import android.app.Activity
 import android.app.role.RoleManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -19,21 +17,65 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,19 +89,25 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.service.components.HelpScreen
-import blu.macaw.velvetwall.ui.screens.*
-import blu.macaw.velvetwall.ui.theme.*
+import blu.macaw.velvetwall.ui.screens.BlacklistScreen
+import blu.macaw.velvetwall.ui.screens.PaywallScreen
+import blu.macaw.velvetwall.ui.screens.SettingsScreen
+import blu.macaw.velvetwall.ui.screens.SuccessPurchaseScreen
+import blu.macaw.velvetwall.ui.screens.WhitelistScreen
+import blu.macaw.velvetwall.ui.theme.RoyalCyan
+import blu.macaw.velvetwall.ui.theme.VelvetBlack
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.jar.Manifest
 
 val DarkBg = Color(0xFF0F172A)
-val CyanAccent = Color(0xFF38BDF8)
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
@@ -73,8 +121,10 @@ fun VelvetAppNavigation(
     val context = LocalContext.current
 
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
-    val isPremium by viewModel.isPremiumEnabled.collectAsState()
-    val trialStart by viewModel.trialStartTimestamp.collectAsState()
+    val isPremium = false
+//    val isPremium by viewModel.isPremiumEnabled.collectAsState()
+    val trialStart = 1
+//    val trialStart by viewModel.trialStartTimestamp.collectAsState()
     var showPaywall by remember { mutableStateOf(false) }
 
     // Gatilho Automático: Se o trial de 7 dias expirou e não é PRO, sobe o Paywall
@@ -133,7 +183,7 @@ fun VelvetAppNavigation(
                 startDestination = startDestination,
                 modifier = Modifier.padding(padding)
             ) {
-                composable("home") { HomeScreen(viewModel) }
+                composable("home") { HomeScreen(viewModel,onDebugPaywall = { showPaywall = true }) }
                 composable("blacklist") { BlacklistScreen(viewModel) }
                 composable("history") { HistoryScreen(viewModel) }
                 composable("settings") {
@@ -175,6 +225,14 @@ fun VelvetAppNavigation(
                 onCloseClick = { showPaywall = false }
             )
         }
+
+        AnimatedVisibility(
+            visible = showSuccess,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut()
+        ) {
+            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccess() })
+        }
     }
 }
 
@@ -184,7 +242,8 @@ fun VelvetAppNavigation(
 data class NavigationItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun HomeScreen(viewModel: MainViewModel) {
+fun HomeScreen(viewModel: MainViewModel,
+               onDebugPaywall: () -> Unit) {
     val context = LocalContext.current
     val isEnabled by viewModel.isServiceActive.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }

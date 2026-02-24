@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -16,7 +18,7 @@ class UserSettings(private val context: Context) {
     // Definindo as chaves
     companion object {
         val TRIAL_START_TIMESTAMP = longPreferencesKey("trial_start_timestamp")
-
+        val SHOW_SUCCESS = booleanPreferencesKey("show_success")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val BLOCK_PRIVATE = booleanPreferencesKey("block_private")
         val BLOCK_UNKNOWN = booleanPreferencesKey("block_unknown")
@@ -121,4 +123,11 @@ class UserSettings(private val context: Context) {
         // Retorna TRUE se ainda estiver dentro dos 7 dias de degustação
         return (currentTime - trialStart) < sevenDaysInMillis
     }
+
+    // Dentro da classe UserSettings
+    suspend fun setShowSuccess(show: Boolean) {
+        context.dataStore.edit { it[SHOW_SUCCESS] = show }
+    }
+
+    val showSuccessFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_SUCCESS] ?: false }
 }

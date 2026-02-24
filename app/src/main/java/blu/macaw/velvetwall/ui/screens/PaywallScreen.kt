@@ -1,23 +1,30 @@
 package blu.macaw.velvetwall.ui.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import blu.macaw.velvetwall.ui.theme.RoyalCyan
+import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
 @Composable
 fun PaywallScreen(
@@ -25,15 +32,18 @@ fun PaywallScreen(
     onRestoreClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
-    // Paleta Velvet Wall
-    val velvetDark = Color(0xFF0F172A)
     val surfaceDark = Color(0xFF1E293B)
-    val royalCyan = Color(0xFF22D3EE)
     val textMuted = Color(0xFF94A3B8)
 
-    // Fundo com um leve degradê para dar profundidade
+    // Brush para o fundo da tela
     val bgBrush = Brush.verticalGradient(
-        colors = listOf(velvetDark, Color(0xFF020617))
+        colors = listOf(VelvetBlack, Color(0xFF020617))
+    )
+
+    // Brush animado para o efeito Shimmer no botão
+    val shimmerBrush = rememberAnimatedShimmerBrush(
+        shimmerColor = Color.White.copy(alpha = 0.4f), // Cor do brilho
+        backgroundColor = Color.Transparent // Fundo transparente para sobrepor o botão
     )
 
     Box(
@@ -41,139 +51,188 @@ fun PaywallScreen(
             .fillMaxSize()
             .background(bgBrush)
     ) {
-        // Botão de fechar (Sutil, para manter o foco na compra)
+        // Botão de fechar
         IconButton(
             onClick = onCloseClick,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
         ) {
-            Icon(Icons.Default.Close, contentDescription = "Fechar", tint = textMuted)
+            Icon(Icons.Default.Close, "Fechar", tint = textMuted)
         }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 1. Ícone de Destaque
-            Icon(
-                imageVector = Icons.Default.WorkspacePremium,
-                contentDescription = "Premium",
-                tint = royalCyan,
-                modifier = Modifier.size(72.dp)
-            )
+            // 1. Header com Ícone Premium
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = RoyalCyan.copy(alpha = 0.1f),
+                border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.3f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.WorkspacePremium,
+                        contentDescription = null,
+                        tint = RoyalCyan,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // 2. Título de Impacto
             Text(
                 text = "Desbloqueie o Silêncio Absoluto",
                 color = Color.White,
-                fontSize = 26.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
-                lineHeight = 32.sp
+                lineHeight = 34.sp
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Junte-se à elite protegida pela Blu Macaw Lab's.",
+                text = "Proteção de elite pela Blu Macaw Lab's.",
                 color = textMuted,
                 fontSize = 16.sp,
-                textAlign = TextAlign.Center
+                modifier = Modifier.padding(top = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // 3. Lista de Benefícios (O que ele ganha)
+            // 2. Lista de Benefícios
             Card(
                 colors = CardDefaults.cardColors(containerColor = surfaceDark),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    FeatureRow(Icons.Default.PublicOff, "Modo Paranóico (Bloqueio por DDD)", royalCyan)
-                    FeatureRow(Icons.Default.VisibilityOff, "Modo Stealth (Invisível & Háptico)", royalCyan)
-                    FeatureRow(Icons.Default.Fingerprint, "Proteção Biométrica de Logs", royalCyan)
-                    FeatureRow(Icons.Default.AllInclusive, "Licença Vitalícia (Sem mensalidade)", royalCyan)
+                Column(modifier = Modifier.padding(24.dp)) {
+                    val features = listOf(
+                        FeatureItem(Icons.Default.PublicOff, "Modo Paranóico (DDD)"),
+                        FeatureItem(Icons.Default.VisibilityOff, "Modo Stealth Invisível"),
+                        FeatureItem(Icons.Default.Fingerprint, "Biometria de Logs"),
+                        FeatureItem(Icons.Default.AllInclusive, "Licença Vitalícia")
+                    )
+
+                    features.forEach { item ->
+                        FeatureRow(item.icon, item.text, RoyalCyan)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // 4. Preço e Urgência
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(2.dp, royalCyan.copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("PAGAMENTO ÚNICO", color = royalCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Text("R$ 29,90", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Acesso vitalício a todas as atualizações.", color = textMuted, fontSize = 12.sp)
+            // 3. Preço
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "PAGAMENTO ÚNICO",
+                    color = RoyalCyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("R$", color = Color.White, fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp, end = 4.dp))
+                    Text("29,90", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
                 }
+                Text("Sem assinaturas. Para sempre.", color = textMuted, fontSize = 14.sp)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // 5. Call to Action Principal
+            // 4. Botão de Compra com Shimmer Animado
             Button(
                 onClick = onBuyClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = royalCyan),
-                shape = RoundedCornerShape(12.dp)
+                    .height(60.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RoyalCyan),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
             ) {
-                Text(
-                    text = "TORNAR-SE PRO AGORA",
-                    color = velvetDark,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                // Usamos um Box para sobrepor o efeito shimmer ao texto
+                Box(contentAlignment = Alignment.Center) {
+                    // O texto base do botão
+                    Text(
+                        text = "TORNAR-SE PRO AGORA",
+                        color = VelvetBlack,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
+                    )
+
+                    // O efeito shimmer aplicado sobre o texto usando um Box com background brush
+                    // e cortado no formato do texto (simplificado aqui como um retângulo sobreposto)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp) // Mesma altura do botão
+                            .background(shimmerBrush)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 6. Botão de Restaurar Compra (Discreto, mas acessível)
-            TextButton(onClick = onRestoreClick) {
-                Text(
-                    text = "Já comprou antes? Restaurar licença",
-                    color = textMuted,
-                    fontSize = 14.sp
-                )
+            TextButton(
+                onClick = onRestoreClick,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text("Restaurar licença anterior", color = textMuted)
             }
         }
     }
 }
 
+// --- Estruturas Auxiliares ---
+
+private data class FeatureItem(val icon: ImageVector, val text: String)
+
 @Composable
-fun FeatureRow(icon: ImageVector, text: String, iconColor: Color) {
+private fun FeatureRow(icon: ImageVector, text: String, color: Color) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 8.dp)
+        modifier = Modifier.padding(vertical = 10.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconColor,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
+}
+
+/**
+ * Cria um Brush animado que simula um efeito de brilho passando.
+ */
+@Composable
+fun rememberAnimatedShimmerBrush(
+    shimmerColor: Color,
+    backgroundColor: Color,
+    durationMillis: Int = 1500
+): Brush {
+    val transition = rememberInfiniteTransition(label = "ShimmerTransition")
+    val translateAnimation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f, // Valor arbitrário que cobre a largura do componente
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = durationMillis,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ShimmerTranslate"
+    )
+
+    return Brush.linearGradient(
+        colors = listOf(
+            backgroundColor,
+            shimmerColor,
+            backgroundColor
+        ),
+        start = Offset(translateAnimation - 200f, translateAnimation - 200f),
+        end = Offset(translateAnimation, translateAnimation),
+        tileMode = TileMode.Clamp
+    )
 }
