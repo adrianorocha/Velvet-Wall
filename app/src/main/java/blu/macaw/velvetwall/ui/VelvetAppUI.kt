@@ -123,10 +123,10 @@ fun VelvetAppNavigation(
     val context = LocalContext.current
 
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
-    val isPremium = false
-//    val isPremium by viewModel.isPremiumEnabled.collectAsState()
-    val trialStart = 1
-//    val trialStart by viewModel.trialStartTimestamp.collectAsState()
+//    val isPremium = false
+    val isPremium by viewModel.isPremiumEnabled.collectAsState()
+//    val trialStart = 1
+    val trialStart by viewModel.trialStartTimestamp.collectAsState()
     var showPaywall by remember { mutableStateOf(false) }
 
     val showSuccess by viewModel.showSuccess.collectAsState()

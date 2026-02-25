@@ -20,7 +20,7 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
+        versionCode = 6
         versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -31,6 +31,7 @@ android {
             ndk {
                 debugSymbolLevel = "full"
             }
+
             isMinifyEnabled = true
 
             // Enables resource shrinking.

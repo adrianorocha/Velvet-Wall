@@ -74,6 +74,11 @@ class MainViewModel(
         // Conexão imediata com a Play Store para validação de licenças
         billingHelper.startConnection()
 
+        billingHelper.checkExistingPurchases { isPro ->
+            viewModelScope.launch {
+                userSettings.savePremiumStatus(isPro) // Faz o status "grudar" no banco
+            }
+        }
         // Feedback visual imediato ao detectar um bloqueio no histórico
         viewModelScope.launch {
             repository.callLogs.collect { logs ->

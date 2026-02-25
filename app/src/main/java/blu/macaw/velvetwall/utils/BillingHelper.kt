@@ -3,11 +3,13 @@ package blu.macaw.velvetwall.utils
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import com.android.billingclient.api.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import blu.macaw.velvetwall.data.UserSettings
+import com.android.billingclient.BuildConfig
 
 class BillingHelper(
     private val context: Context,
@@ -16,6 +18,7 @@ class BillingHelper(
 ) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val isDebug = true
 
     private val billingClient = BillingClient.newBuilder(context)
         .setListener { billingResult, purchases ->
@@ -43,31 +46,60 @@ class BillingHelper(
     }
 
     fun launchPurchaseFlow(activity: Activity) {
+        // 1. Verificação de Conexão
+        if (!billingClient.isReady) {
+            Log.e("VELVET_BILLING", "❌ BillingClient não está pronto!")
+            Toast.makeText(context, "Serviço da Play Store não está pronto. Tentando reconectar...", Toast.LENGTH_LONG).show()
+            startConnection()
+            return
+        }
+
         val productList = listOf(
             QueryProductDetailsParams.Product.newBuilder()
                 .setProductId("velvet_wall_pro_lifetime")
                 .setProductType(BillingClient.ProductType.INAPP)
                 .build()
         )
+
         val params = QueryProductDetailsParams.newBuilder().setProductList(productList).build()
 
+        Log.d("VELVET_BILLING", "🔍 Consultando produto: velvet_wall_pro_lifetime...")
+
         billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+            // 2. Log do Resultado da Consulta
+            VelvetBillingLogger.logResult("QUERY_PRODUCT", billingResult)
+
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                val productDetails = productDetailsList.firstOrNull() ?: return@queryProductDetailsAsync
+                val productDetails = productDetailsList.firstOrNull()
+
+                if (productDetails == null) {
+                    // ERRO MAIS COMUM: O Google não encontrou o ID
+                    Log.e("VELVET_BILLING", "❌ Produto não encontrado no Console! Verifique o ID.")
+                    activity.runOnUiThread {
+                        Toast.makeText(context, "Erro: Produto não encontrado na Play Store.", Toast.LENGTH_LONG).show()
+                    }
+                    return@queryProductDetailsAsync
+                }
+
                 val productDetailsParamsList = listOf(
                     BillingFlowParams.ProductDetailsParams.newBuilder()
                         .setProductDetails(productDetails)
                         .build()
                 )
+
                 val billingFlowParams = BillingFlowParams.newBuilder()
                     .setProductDetailsParamsList(productDetailsParamsList)
                     .build()
 
+                Log.d("VELVET_BILLING", "🚀 Lançando fluxo de compra...")
                 billingClient.launchBillingFlow(activity, billingFlowParams)
+            } else {
+                activity.runOnUiThread {
+                    Toast.makeText(context, "Erro Play Store: ${billingResult.debugMessage}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
-
     fun handlePurchase(purchase: Purchase) {
         if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
             scope.launch {
@@ -89,6 +121,24 @@ class BillingHelper(
         }
     }
 
+    fun checkExistingPurchases(onStateUpdated: (Boolean) -> Unit) {
+        if (!billingClient.isReady) return
+
+        val params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+
+        billingClient.queryPurchasesAsync(params) { billingResult, purchaseList ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                // Verifica se o ID "velvet-wall-pro-lifetime" está na lista e se foi comprado
+                val isPro = purchaseList.any {
+                    it.products.contains("velvet_wall_pro_lifetime") &&
+                            it.purchaseState == Purchase.PurchaseState.PURCHASED
+                }
+                onStateUpdated(isPro)
+            }
+        }
+    }
     fun checkCurrentPurchases() {
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.INAPP)

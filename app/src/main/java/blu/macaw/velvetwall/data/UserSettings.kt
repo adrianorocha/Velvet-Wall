@@ -131,4 +131,10 @@ class UserSettings(private val context: Context) {
 
     val showSuccess: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[SHOW_SUCCESS] ?: false }
+
+    suspend fun savePremiumStatus(isPro: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[IS_PREMIUM] = isPro
+        }
+    }
 }
