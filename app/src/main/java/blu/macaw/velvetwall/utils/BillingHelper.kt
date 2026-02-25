@@ -100,23 +100,33 @@ class BillingHelper(
             }
         }
     }
-    fun handlePurchase(purchase: Purchase) {
+    private fun handlePurchase(purchase: Purchase) {
+        // 1. Verifica se o status é realmente "Comprado" (e não "Pendente")
         if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-            scope.launch {
-                userSettings.setPremium(true)
-            }
 
+            // 2. Verifica se a compra AINDA NÃO foi confirmada
             if (!purchase.isAcknowledged) {
-                val acknowledgeParams = AcknowledgePurchaseParams.newBuilder()
+
+                // 3. Monta o pacote de confirmação com o Token único da compra
+                val acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
                     .setPurchaseToken(purchase.purchaseToken)
                     .build()
 
-                billingClient.acknowledgePurchase(acknowledgeParams) { result ->
-                    if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                        Log.d("VELVET_BILLING", "✅ Compra confirmada!")
-                        onSuccess() // <--- AQUI o ViewModel é avisado para brilhar!
+                // 4. Envia para o Google
+                billingClient.acknowledgePurchase(acknowledgePurchaseParams) { billingResult ->
+                    if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        Log.d("VELVET_BILLING", "✅ Compra confirmada com sucesso no Google!")
+
+                        // AQUI VOCÊ ATUALIZA O ESTADO:
+                        // Exemplo: onPurchaseSuccess(true) ou chamando o ViewModel
+                    } else {
+                        Log.e("VELVET_BILLING", "❌ Erro ao confirmar compra: ${billingResult.debugMessage}")
                     }
                 }
+            } else {
+                // Se já estava confirmada (ex: o usuário reinstalou o app)
+                Log.d("VELVET_BILLING", "✅ Compra já estava confirmada anteriormente.")
+                // Apenas atualize o estado local para liberar o modo PRO
             }
         }
     }
