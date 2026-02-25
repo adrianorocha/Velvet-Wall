@@ -131,6 +131,38 @@ class BillingHelper(
         }
     }
 
+    fun queryExistingPurchases(onResult: (Boolean) -> Unit) {
+        if (!billingClient.isReady) return
+
+        val params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+
+        billingClient.queryPurchasesAsync(params) { billingResult, purchaseList ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+
+                var isPro = false
+                for (purchase in purchaseList) {
+                    if (purchase.products.contains("velvet_wall_pro_lifetime") &&
+                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+
+                        isPro = true
+                        handlePurchase(purchase) // <--- Confirma também ao inicializar, se estiver pendente!
+                    }
+                }
+                onResult(isPro)
+            }
+        }
+    }
+    private val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
+        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
+            for (purchase in purchases) {
+                handlePurchase(purchase) // <--- Chama aqui!
+            }
+        } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
+            Log.i("VELVET_BILLING", "Usuário cancelou a compra.")
+        }
+    }
     fun checkExistingPurchases(onStateUpdated: (Boolean) -> Unit) {
         if (!billingClient.isReady) return
 
