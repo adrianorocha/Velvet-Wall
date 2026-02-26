@@ -1,24 +1,51 @@
 package blu.macaw.velvetwall.ui.screens
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.PublicOff
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,10 +55,13 @@ import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
 @Composable
 fun PaywallScreen(
+    isRestoring: Boolean,
     onBuyClick: () -> Unit,
     onRestoreClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
+    val context = LocalContext.current // Necessário para o Toast
+
     val surfaceDark = Color(0xFF1E293B)
     val textMuted = Color(0xFF94A3B8)
 
@@ -137,8 +167,18 @@ fun PaywallScreen(
                     letterSpacing = 2.sp
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("R$", color = Color.White, fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp, end = 4.dp))
-                    Text("29,90", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
+                    Text(
+                        "R$",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(bottom = 8.dp, end = 4.dp)
+                    )
+                    Text(
+                        "29,90",
+                        color = Color.White,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Black
+                    )
                 }
                 Text("Sem assinaturas. Para sempre.", color = textMuted, fontSize = 14.sp)
             }
@@ -148,6 +188,7 @@ fun PaywallScreen(
             // 4. Botão de Compra com Shimmer Animado
             Button(
                 onClick = onBuyClick,
+                enabled = !isRestoring,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
@@ -178,9 +219,23 @@ fun PaywallScreen(
 
             TextButton(
                 onClick = onRestoreClick,
+                enabled = !isRestoring,
                 modifier = Modifier.padding(top = 8.dp)
             ) {
-                Text("Restaurar licença anterior", color = textMuted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isRestoring) {
+                        // Rodinha de progresso no lugar do ícone ou ao lado do texto
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = RoyalCyan
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Buscando...", color = textMuted)
+                    } else {
+                        Text("Restaurar licença anterior", color = textMuted)
+                    }
+                }
             }
         }
     }

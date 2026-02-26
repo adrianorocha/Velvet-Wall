@@ -20,15 +20,21 @@ class BillingHelper(
     private val scope = CoroutineScope(Dispatchers.IO)
     private val isDebug = true
 
-    private val billingClient = BillingClient.newBuilder(context)
-        .setListener { billingResult, purchases ->
-            VelvetBillingLogger.logResult("LISTENER_COMPRA", billingResult)
-            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-                for (purchase in purchases) {
-                    handlePurchase(purchase)
-                }
+    private val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
+        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
+            for (purchase in purchases) {
+                // Aqui chamamos aquela função de confirmação que criamos!
+                handlePurchase(purchase)
             }
+        } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
+            Log.i("VELVET_BILLING", "Usuário desistiu da compra.")
+        } else {
+            Log.e("VELVET_BILLING", "Erro no faturamento: ${billingResult.debugMessage}")
         }
+    }
+
+    private val billingClient = BillingClient.newBuilder(context)
+        .setListener(purchasesUpdatedListener)
         .enablePendingPurchases()
         .build()
 
@@ -44,7 +50,6 @@ class BillingHelper(
             }
         })
     }
-
     fun launchPurchaseFlow(activity: Activity) {
         // 1. Verificação de Conexão
         if (!billingClient.isReady) {
@@ -118,6 +123,7 @@ class BillingHelper(
                         Log.d("VELVET_BILLING", "✅ Compra confirmada com sucesso no Google!")
 
                         // AQUI VOCÊ ATUALIZA O ESTADO:
+                        onSuccess()
                         // Exemplo: onPurchaseSuccess(true) ou chamando o ViewModel
                     } else {
                         Log.e("VELVET_BILLING", "❌ Erro ao confirmar compra: ${billingResult.debugMessage}")
@@ -131,38 +137,7 @@ class BillingHelper(
         }
     }
 
-    fun queryExistingPurchases(onResult: (Boolean) -> Unit) {
-        if (!billingClient.isReady) return
 
-        val params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.INAPP)
-            .build()
-
-        billingClient.queryPurchasesAsync(params) { billingResult, purchaseList ->
-            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-
-                var isPro = false
-                for (purchase in purchaseList) {
-                    if (purchase.products.contains("velvet_wall_pro_lifetime") &&
-                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-
-                        isPro = true
-                        handlePurchase(purchase) // <--- Confirma também ao inicializar, se estiver pendente!
-                    }
-                }
-                onResult(isPro)
-            }
-        }
-    }
-    private val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
-        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            for (purchase in purchases) {
-                handlePurchase(purchase) // <--- Chama aqui!
-            }
-        } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
-            Log.i("VELVET_BILLING", "Usuário cancelou a compra.")
-        }
-    }
     fun checkExistingPurchases(onStateUpdated: (Boolean) -> Unit) {
         if (!billingClient.isReady) return
 
@@ -172,13 +147,35 @@ class BillingHelper(
 
         billingClient.queryPurchasesAsync(params) { billingResult, purchaseList ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                // Verifica se o ID "velvet-wall-pro-lifetime" está na lista e se foi comprado
+                // Verifica se o ID "velvet_wall_pro_lifetime" está na lista e se foi comprado
                 val isPro = purchaseList.any {
                     it.products.contains("velvet_wall_pro_lifetime") &&
                             it.purchaseState == Purchase.PurchaseState.PURCHASED
                 }
                 onStateUpdated(isPro)
             }
+        }
+    }
+
+    fun queryExistingPurchases(onResult: (Boolean) -> Unit) {
+        if (!billingClient.isReady) {
+            Log.e("VELVET", "BillingClient não está pronto. Reiniciando conexão.")
+            onResult(false) // <--- OBRIGATÓRIO: Avisa o ViewModel para parar a rodinha
+            startConnection()
+            return
+        }
+
+        val params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+
+        billingClient.queryPurchasesAsync(params) { result, list ->
+            // Verifica o ID com hifens
+            val hasPro = result.responseCode == BillingClient.BillingResponseCode.OK &&
+                    list.any { it.products.contains("velvet_wall_pro_lifetime") }
+
+            // Se a lista estiver vazia ou o código for diferente de OK, hasPro será false
+            onResult(hasPro)
         }
     }
     fun checkCurrentPurchases() {

@@ -75,6 +75,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -125,20 +126,33 @@ fun VelvetAppNavigation(
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
 //    val isPremium = false
     val isPremium by viewModel.isPremiumEnabled.collectAsState()
-//    val trialStart = 1
+ //   val trialStart = 1
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
-    var showPaywall by remember { mutableStateOf(false) }
+    var showPaywall by rememberSaveable { mutableStateOf(false) }
+    var forcePremiumState by rememberSaveable { mutableStateOf(false) }
+
+    val userIsPro = isPremium || forcePremiumState
 
     val showSuccess by viewModel.showSuccess.collectAsState()
 
-    // Gatilho Automático: Se o trial de 7 dias expirou e não é PRO, sobe o Paywall
-    LaunchedEffect(isPremium, trialStart) {
+    val isRestoringUI by viewModel.isRestoring.collectAsState()
+
+    LaunchedEffect(isPremium, trialStart, showSuccess) {
         val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
         val currentTime = System.currentTimeMillis()
 
-        if (!isPremium && trialStart > 0 && (currentTime - trialStart) > sevenDaysInMillis) {
-            delay(1500) // Aguarda o app estabilizar antes de oferecer o upgrade
-            showPaywall = true
+        // SE A TELA DE SUCESSO ESTIVER ATIVA, ABORTA TUDO E FECHA O PAYWALL!
+        if (showSuccess) {
+            showPaywall = false
+            return@LaunchedEffect
+        }
+
+        when {
+            isPremium -> showPaywall = false
+            // Só abre o Paywall se NÃO for premium, se o trial venceu, E se NÃO estiver na tela de sucesso
+            (!isPremium && trialStart > 0 && (currentTime - trialStart) > sevenDaysInMillis && !showSuccess) -> {
+                showPaywall = true
+            }
         }
     }
 
@@ -211,7 +225,7 @@ fun VelvetAppNavigation(
 
         // 2. A "MÁGICA" DO SLIDE UP (PAYWALL)
         AnimatedVisibility(
-            visible = showPaywall,
+            visible = showPaywall && !userIsPro,
             enter = slideInVertically(
                 initialOffsetY = { fullHeight -> fullHeight }, // Inicia do fundo da tela
                 animationSpec = tween(durationMillis = 600)
@@ -224,8 +238,9 @@ fun VelvetAppNavigation(
         ) {
             val activity = context as? Activity
             PaywallScreen(
+                isRestoring = isRestoringUI,
                 onBuyClick = { activity?.let { viewModel.buyPremium(it) } },
-                onRestoreClick = { viewModel.restorePremium() },
+                onRestoreClick = { viewModel.restorePremium(context) },
                 onCloseClick = { showPaywall = false }
             )
         }
@@ -233,9 +248,14 @@ fun VelvetAppNavigation(
         AnimatedVisibility(
             visible = showSuccess,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
-            exit = fadeOut()
+            exit = fadeOut(),
+            modifier = Modifier.zIndex(20f)
         ) {
-            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccessAnimation() })
+            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccessAnimation()
+                forcePremiumState = true
+                showPaywall = false
+                viewModel.dismissSuccessAnimation()
+            })
         }
     }
 }
@@ -286,7 +306,10 @@ fun HomeScreen(viewModel: MainViewModel,
         containerColor = VelvetBlack
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -356,7 +379,9 @@ fun HomeScreen(viewModel: MainViewModel,
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = if (isEnabled) Color.Transparent else RoyalCyan),
                 border = if (isEnabled) BorderStroke(1.dp, RoyalCyan) else null
@@ -449,7 +474,9 @@ fun HistoryScreen(viewModel: MainViewModel) {
     ) {
         // Cabeçalho Premium
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.TimeUnit
 
 class MainViewModel(
@@ -42,6 +44,9 @@ class MainViewModel(
         userSettings = userSettings,
         onSuccess = { triggerSuccess() }
     )
+
+    private val _isRestoring = MutableStateFlow(false)
+    val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
 
     // --- ESTADOS DE FATURAMENTO (BILLING) ---
 
@@ -100,11 +105,41 @@ class MainViewModel(
     /**
      * Restaura compras anteriores, essencial para aprovação na Play Store.
      */
-    fun restorePremium() {
+
+
+    // No seu MainViewModel.kt
+
+    fun restorePremium(context: Context) {
         viewModelScope.launch {
-            _blockEvent.emit("Verificando licenças na Google Play...")
-            billingHelper.restorePurchases()
-            delay(2000)
+            try {
+                _isRestoring.value = true
+                _blockEvent.emit("Sincronizando com a Google Play...")
+
+                // Criamos um timer de segurança externo
+                launch {
+                    delay(10000) // 10 segundos de limite absoluto
+                    if (_isRestoring.value) {
+                        _isRestoring.value = false
+                        Log.d("VELVET", "Timeout: Google não respondeu, destravando UI.")
+                    }
+                }
+
+                billingHelper.queryExistingPurchases { isPro ->
+                    // O callback precisa rodar no escopo da Main thread para atualizar a UI
+                    viewModelScope.launch {
+                        try {
+                            userSettings.savePremiumStatus(isPro)
+                            val msg = if (isPro) "Licença PRO ativa! 🦜" else "Nenhuma licença encontrada."
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                        } finally {
+                            _isRestoring.value = false // GARANTE que a rodinha pare no sucesso/erro
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _isRestoring.value = false // GARANTE que pare se o código crashar
+                Log.e("VELVET", "Erro crítico no restauro: ${e.message}")
+            }
         }
     }
 

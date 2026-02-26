@@ -6,14 +6,55 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.NoEncryption
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SettingsApplications
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,9 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.MainViewModel
+import blu.macaw.velvetwall.service.components.SettingsSwitchItem
 import blu.macaw.velvetwall.ui.components.SettingsClickableItem
 import blu.macaw.velvetwall.ui.components.SettingsGroup
-import blu.macaw.velvetwall.service.components.SettingsSwitchItem
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
@@ -132,13 +173,23 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Limpeza Automática", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Apagar logs com mais de $selectedDays dias", color = Color.Gray, fontSize = 12.sp)
+                        Text(
+                            "Limpeza Automática",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Apagar logs com mais de $selectedDays dias",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
                     }
 
                     Box {
@@ -152,7 +203,11 @@ fun SettingsScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("$selectedDays dias", color = RoyalCyan, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "$selectedDays dias",
+                                    color = RoyalCyan,
+                                    fontWeight = FontWeight.Bold
+                                )
                                 Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
                             }
                         }
@@ -235,7 +290,13 @@ fun SettingsScreen(
                         SuggestionChip(
                             onClick = { viewModel.removeBlockedDDD(ddd) },
                             label = { Text("DDD $ddd", color = RoyalCyan) },
-                            icon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp)) },
+                            icon = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
                             modifier = Modifier.padding(end = 8.dp)
                         )
                     }
@@ -282,7 +343,9 @@ fun SettingsScreen(
                     viewModel.clearEverything()
                     Toast.makeText(context, "🛡️ Tudo limpo!", Toast.LENGTH_LONG).show()
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B)),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -311,10 +374,17 @@ fun SettingsScreen(
 @Composable
 private fun FooterSection() {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 48.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 32.dp, bottom = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.Shield, null, tint = RoyalCyan.copy(alpha = 0.3f), modifier = Modifier.size(40.dp))
+        Icon(
+            Icons.Default.Shield,
+            null,
+            tint = RoyalCyan.copy(alpha = 0.3f),
+            modifier = Modifier.size(40.dp)
+        )
         Spacer(Modifier.height(8.dp))
         Text("Velvet Wall", color = Color.White, fontWeight = FontWeight.Bold)
         Text("Versão 1.1.0", color = Color.Gray, fontSize = 12.sp)
