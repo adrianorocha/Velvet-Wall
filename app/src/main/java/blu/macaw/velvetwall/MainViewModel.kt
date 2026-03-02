@@ -143,6 +143,21 @@ class MainViewModel(
         }
     }
 
+    fun resetPremiumForDebug() {
+        viewModelScope.launch {
+            // Volta o usuário para o estado "pobre"
+            userSettings.savePremiumStatus(false)
+            userSettings.setShowSuccess(false)
+            Log.d("VELVET_DEBUG", "🧹 Status Premium resetado localmente.")
+        }
+    }
+
+    fun triggerSuccessForDebug() {
+        viewModelScope.launch {
+            // Dispara a SuccessScreen e os confetes na hora!
+            userSettings.setShowSuccess(false)
+        }
+    }
     // --- GESTÃO DE LISTAS E HISTÓRICO ---
     val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), emptySet())
     val blacklist = repository.blacklist

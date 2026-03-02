@@ -58,6 +58,7 @@ fun PaywallScreen(
     isRestoring: Boolean,
     onBuyClick: () -> Unit,
     onRestoreClick: () -> Unit,
+    onLogsClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
     val context = LocalContext.current // Necessário para o Toast

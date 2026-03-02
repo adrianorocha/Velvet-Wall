@@ -26,6 +26,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -110,6 +111,8 @@ import java.util.Date
 import java.util.Locale
 import blu.macaw.velvetwall.utils.BiometricHelper
 import androidx.fragment.app.FragmentActivity
+import blu.macaw.velvetwall.ui.screens.LogBiometricsScreen
+
 val DarkBg = Color(0xFF0F172A)
 
 @RequiresApi(Build.VERSION_CODES.Q)
@@ -136,6 +139,8 @@ fun VelvetAppNavigation(
     val showSuccess by viewModel.showSuccess.collectAsState()
 
     val isRestoringUI by viewModel.isRestoring.collectAsState()
+
+    var showBiometricLogs by remember { mutableStateOf(false) }
 
     LaunchedEffect(isPremium, trialStart, showSuccess) {
         val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
@@ -241,10 +246,31 @@ fun VelvetAppNavigation(
                 isRestoring = isRestoringUI,
                 onBuyClick = { activity?.let { viewModel.buyPremium(it) } },
                 onRestoreClick = { viewModel.restorePremium(context) },
-                onCloseClick = { showPaywall = false }
+                onCloseClick = { showPaywall = false },
+                onLogsClick = { showBiometricLogs = true }
             )
         }
 
+// NOVA CAMADA: BIOMETRIA DE LOGS (zIndex 15 - Entre o Paywall e o Sucesso)
+        AnimatedVisibility(
+            visible = showBiometricLogs,
+            enter = slideInVertically(initialOffsetY = { it }), // Sobe de baixo para cima
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.zIndex(15f)
+        ) {
+            // Chamando a tela que criamos, com um botão para voltar
+            Box {
+                LogBiometricsScreen()
+
+                // Botão "Voltar" discreto no topo
+                TextButton(
+                    onClick = { showBiometricLogs = false },
+                    modifier = Modifier.padding(16.dp).align(Alignment.TopStart)
+                ) {
+                    Text("VOLTAR", color = RoyalCyan, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         AnimatedVisibility(
             visible = showSuccess,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
@@ -273,8 +299,39 @@ fun HomeScreen(viewModel: MainViewModel,
     val snackbarHostState = remember { SnackbarHostState() }
     val blockMessage by viewModel.blockEvent.collectAsState(initial = "")
 
+    var showDebugMenu by remember { mutableStateOf(false) }
+
+    var debugClickCount by remember { mutableStateOf(0) }
+
     val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.checkRoleStatus(context)
+    }
+
+    // Dialog do Menu Secreto
+    if (showDebugMenu) {
+        AlertDialog(
+            onDismissRequest = { showDebugMenu = false },
+            containerColor = Color(0xFF1E293B),
+            title = { Text("🛠️ Blu Macaw Debug", color = Color.White) },
+            text = {
+                Column {
+                    Button(
+                        onClick = { viewModel.resetPremiumForDebug(); showDebugMenu = false },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) { Text("RESETAR PREMIUM (VOLTAR FREE)") }
+
+                    Button(
+                        onClick = { viewModel.triggerSuccessForDebug(); showDebugMenu = false },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalCyan)
+                    ) { Text("FORÇAR TELA DE SUCESSO (CONFETES)") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDebugMenu = false }) { Text("FECHAR") }
+            }
+        )
     }
 
     val permissionsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -313,7 +370,22 @@ fun HomeScreen(viewModel: MainViewModel,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // Deixa o clique "fantasma" (sem brilho)
+                    onClick = {
+                        // A sua lógica entra exatamente aqui:
+                        debugClickCount++
+
+                        if (debugClickCount >= 5) {
+                            showDebugMenu = true
+                            debugClickCount = 0 // Reseta para a próxima vez
+                        }
+                    }
+                )
+            ) {
                 if (isEnabled) {
                     Surface(Modifier.size(160.dp), shape = CircleShape, color = RoyalCyan.copy(alpha = 0.1f)) {}
                 }
