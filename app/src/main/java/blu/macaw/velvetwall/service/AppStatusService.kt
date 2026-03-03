@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo // <--- NOVO IMPORT OBRIGATÓRIO
 import android.os.Build
 import android.os.IBinder
 import android.widget.RemoteViews
@@ -39,7 +40,7 @@ class AppStatusService : Service() {
     }
 
     private fun updateCustomNotification(isBlockingUnknown: Boolean) {
-        // 1. Prepara os Intents (Ações dos cliques) - IGUAL AO ANTERIOR
+        // 1. Prepara os Intents (Ações dos cliques) - MANTIDO INTACTO
         val openAppIntent = Intent(this, MainActivity::class.java)
         val pendingOpenApp = PendingIntent.getActivity(this, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE)
 
@@ -61,48 +62,48 @@ class AppStatusService : Service() {
         }
         val pendingList = PendingIntent.getActivity(this, 3, listIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // 2. Configura a RemoteView (O Layout Personalizado)
+        // 2. Configura a RemoteView (O Layout Personalizado) - MANTIDO INTACTO
         val customLayout = RemoteViews(packageName, R.layout.notification_control_panel)
 
-        // Define os textos e ícones dinâmicos
         val statusText = if (isBlockingUnknown) "Proteção Máxima Ativa" else "Modo Monitoramento"
         val toggleText = if (isBlockingUnknown) "Desativar" else "Ativar"
-        // Ícone de "tomada" ou "escudo" que muda conforme o estado
-        val toggleIcon = if (isBlockingUnknown) R.drawable.ic_power_off else R.drawable.ic_shield_large // Use um ícone de 'ligar' se tiver
+        val toggleIcon = if (isBlockingUnknown) R.drawable.ic_power_off else R.drawable.ic_shield_large
 
         customLayout.setTextViewText(R.id.notif_status_text, statusText)
         customLayout.setTextViewText(R.id.txt_toggle, toggleText)
-        // Atualiza o ícone do botão de alternar
         customLayout.setImageViewResource(R.id.icon_toggle, toggleIcon)
 
-        // Conecta os botões aos Intents
         customLayout.setOnClickPendingIntent(R.id.btn_toggle, pendingToggle)
         customLayout.setOnClickPendingIntent(R.id.btn_settings, pendingSettings)
         customLayout.setOnClickPendingIntent(R.id.btn_list, pendingList)
 
-        // 3. Constrói a Notificação
-        // Pegando a cor Ciano dos recursos para usar no builder
+        // 3. Constrói a Notificação - MANTIDO INTACTO
         val royalCyanColor = ContextCompat.getColor(this, R.color.royal_cyan)
 
         val notification = NotificationCompat.Builder(this, "STATUS_CHANNEL_ID")
-            // Ícone pequeno obrigatório para a barra de status (deve ser branco/transparente)
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            // Define a cor de destaque da notificação (usada pelo sistema)
             .setColor(royalCyanColor)
-            // Habilita a notificação colorida (essencial para o fundo escuro funcionar bem)
             .setColorized(true)
-            // Define o estilo de layout personalizado
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(customLayout)
             .setCustomBigContentView(customLayout)
-            // Define que é uma notificação de serviço em andamento
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(pendingOpenApp)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        startForeground(1001, notification)
+        // 4. A MARRETADA DO ANDROID 14 (O QUE MUDOU AQUI)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                1001,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE // Passaporte para rodar no background
+            )
+        } else {
+            // Comportamento padrão para Android 13 ou inferior
+            startForeground(1001, notification)
+        }
     }
 
     private fun createNotificationChannel() {
