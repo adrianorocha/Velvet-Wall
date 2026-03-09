@@ -112,6 +112,7 @@ import java.util.Locale
 import blu.macaw.velvetwall.utils.BiometricHelper
 import androidx.fragment.app.FragmentActivity
 import blu.macaw.velvetwall.ui.screens.LogBiometricsScreen
+import blu.macaw.velvetwall.ui.screens.VelvetPulsingShield
 
 val DarkBg = Color(0xFF0F172A)
 
@@ -127,8 +128,8 @@ fun VelvetAppNavigation(
     val context = LocalContext.current
 
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
-//    val isPremium = false
-    val isPremium by viewModel.isPremiumEnabled.collectAsState()
+    val isPremium = true
+//    val isPremium by viewModel.isPremiumEnabled.collectAsState()
  //   val trialStart = 1
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
     var showPaywall by rememberSaveable { mutableStateOf(false) }
@@ -386,7 +387,14 @@ fun HomeScreen(viewModel: MainViewModel,
                     }
                 )
             ) {
-                if (isEnabled) {
+                Box(
+                    modifier = Modifier.size(280.dp),
+                    contentAlignment = Alignment.Center
+                ){
+                    VelvetPulsingShield(isServiceActive = isEnabled)
+                }
+
+/*                if (isEnabled) {
                     Surface(Modifier.size(160.dp), shape = CircleShape, color = RoyalCyan.copy(alpha = 0.1f)) {}
                 }
                 Icon(
@@ -394,7 +402,7 @@ fun HomeScreen(viewModel: MainViewModel,
                     contentDescription = null,
                     tint = if (isEnabled) RoyalCyan else Color.Gray,
                     modifier = Modifier.size(120.dp)
-                )
+                )*/
             }
 
             Spacer(Modifier.height(32.dp))

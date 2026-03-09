@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.1"
+agp = "9.1.0"
 kotlin = "2.2.10"
 coreKtx = "1.17.0"
 room-db = '2.6.1'
@@ -38,6 +38,8 @@ androidxFoundation = "1.10.2"
 runtimeVersion = "1.10.3"
 animationCoreVersion = "1.10.3"
 androidxFoundationVersion = "1.10.3"
+androidxComposeFoundationFoundation = "1.10.4"
+ui = "1.10.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -81,6 +83,8 @@ foundation = { group = "androidx.compose.foundation", name = "foundation", versi
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtimeVersion" }
 androidx-animation-core = { group = "androidx.compose.animation", name = "animation-core", version.ref = "animationCoreVersion" }
 androidx-compose-foundation-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundationVersion" }
+androidx-compose-foundation-foundation2 = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxComposeFoundationFoundation" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

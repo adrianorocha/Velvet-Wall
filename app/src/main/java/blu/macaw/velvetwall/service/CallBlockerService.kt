@@ -83,7 +83,7 @@ class CallBlockerService : CallScreeningService() {
 
                     // Lista Negra (Recurso Free)
                     repository.shouldBlockCall(normalizedNumber) -> {
-                        shouldBlock = true; blockReason = "Lista Negra"
+                        shouldBlock = true; blockReason = "Interceptados"
                     }
 
                     // DDD Bloqueado (Recurso de Degustação)

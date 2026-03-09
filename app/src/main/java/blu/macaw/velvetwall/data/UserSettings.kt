@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
+
 // Cria a instância única do DataStore para o app
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_settings")
 
@@ -31,6 +32,9 @@ class UserSettings(private val context: Context) {
         val USER_LOCAL_DDD_KEY = stringPreferencesKey("user_local_ddd")
         val STEALTH_MODE_KEY = booleanPreferencesKey("stealth_mode")
     }
+
+    private val SHOW_TUTORIAL_KEY = booleanPreferencesKey("show_tutorial")
+
 
     // --- LEITURA (Flows que atualizam a tela e o serviço automaticamente) ---
     // Fluxos de leitura
@@ -136,5 +140,19 @@ class UserSettings(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[IS_PREMIUM] = isPro
         }
+    }
+
+    // No seu arquivo de preferências (DataStore)
+    // Flow para observar se devemos mostrar o tutorial
+    val showTutorialFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_TUTORIAL_KEY] ?: true }
+
+    // Função para marcar como concluído
+    suspend fun setTutorialCompleted() {
+        context.dataStore.edit { it[SHOW_TUTORIAL_KEY] = false }
+    }
+
+    // 4. A Gravação (O seu código de disable)
+    suspend fun disableTutorial() {
+        context.dataStore.edit { it[SHOW_TUTORIAL_KEY] = false }
     }
 }

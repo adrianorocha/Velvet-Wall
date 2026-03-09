@@ -7,6 +7,7 @@ import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import androidx.datastore.dataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -22,6 +23,7 @@ import blu.macaw.velvetwall.data.worker.CleanupWorker
 import blu.macaw.velvetwall.utils.BillingHelper
 import blu.macaw.velvetwall.utils.NotificationHelper
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,8 +32,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.TimeUnit
+import java.util.prefs.Preferences
 
 class MainViewModel(
     application: Application,
@@ -270,7 +272,7 @@ class MainViewModel(
             // 1. Remove da Negra
             repository.removeFromBlacklist(item)
             // 2. Adiciona na Branca
-            repository.addToWhitelist(item.number, "Movido da Lista Negra")
+            repository.addToWhitelist(item.number, "Movido dos Interceptados")
         }
     }
     fun clearHistory() {
@@ -288,6 +290,17 @@ class MainViewModel(
     fun dismissSuccessAnimation() {
         viewModelScope.launch {
             userSettings.setShowSuccess(false) // Fecha a tela
+        }
+    }
+
+
+    // Puxa o fluxo pronto, sem erro de compilação
+    val showTutorial = userSettings.showTutorialFlow
+
+    // Função que a tela vai chamar quando clicar no botão "Concluir"
+    fun completeTutorial() {
+        viewModelScope.launch {
+            userSettings.setTutorialCompleted()
         }
     }
 }

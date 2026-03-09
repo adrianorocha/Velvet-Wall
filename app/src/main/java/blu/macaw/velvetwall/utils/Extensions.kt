@@ -14,7 +14,7 @@ fun Long.toRelativeTime(): String {
 // Exemplo: Converte "blacklist" para texto amigável
 fun String.toHumanReason(): String {
     return when(this) {
-        "BLACKLIST" -> "Lista Negra"
+        "BLACKLIST" -> "Números Bloqueados"
         "NOT_CONTACT" -> "Fora da Agenda"
         "PRIVATE" -> "Privado"
         else -> "Desconhecido"

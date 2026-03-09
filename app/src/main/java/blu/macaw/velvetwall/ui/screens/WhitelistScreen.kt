@@ -58,7 +58,7 @@ fun WhitelistScreen(viewModel: MainViewModel) {
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text(
-                "Lista Branca (Permitidos)",
+                "Contatos Seguros",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -105,7 +105,8 @@ fun WhitelistScreen(viewModel: MainViewModel) {
             // Reutilizando lógica simples de Dialog
             AddNumberDialog(
                 onDismiss = { showDialog = false },
-                onConfirm = { num, name -> viewModel.addToWhitelist(num, name) }
+                onConfirm = { num, name -> viewModel.addToWhitelist(num, name) },
+                tipoLista = "WHITELIST"
             )
         }
     }

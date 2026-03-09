@@ -20,7 +20,7 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
+        versionCode = 12
         versionName = "1.0.0-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -98,6 +98,8 @@ dependencies {
     implementation(libs.androidx.animation.core)
     implementation(libs.androidx.compose.foundation.foundation)
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    implementation(libs.androidx.compose.foundation.foundation2)
+    implementation(libs.androidx.ui)
 
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation(libs.junit)

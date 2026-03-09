@@ -13,7 +13,7 @@
     <string name="home_status_inactive">Proteção Pausada</string>
     <string name="home_monitoring_label">Monitorando chamadas em tempo real</string>
     <string name="nav_home">Escudo</string>
-    <string name="nav_blacklist">Lista Negra</string>
+    <string name="nav_blacklist">Interceptados</string>
     <string name="nav_history">Histórico</string>
     <string name="nav_settings">Ajustes</string>
 

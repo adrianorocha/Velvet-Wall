@@ -11,6 +11,7 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.runtime.collectAsState // <-- NOVO IMPORT OBRIGATÓRIO
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,8 +26,10 @@ import blu.macaw.velvetwall.service.AppStatusService
 import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.ui.VelvetAppNavigation
 import blu.macaw.velvetwall.ui.screens.VelvetSplashScreen
+import blu.macaw.velvetwall.ui.screens.VelvetTutorialScreen
 import blu.macaw.velvetwall.ui.theme.MainViewModelFactory
 import blu.macaw.velvetwall.ui.theme.VelvetWallTheme
+// import blu.macaw.velvetwall.ui.screens.VelvetTutorialScreen // Descomente e ajuste o caminho se necessário
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -151,16 +154,34 @@ class MainActivity : FragmentActivity() {
     private fun loadUI(targetScreen: String, skipSplash: Boolean = false) {
         setContent {
             VelvetWallTheme {
-                // Se skipSplash for true, showSplash começa false
+                // 1. Estado da Splash
                 var showSplash by remember { mutableStateOf(!skipSplash) }
 
+                // 2. Estado do Tutorial (NOVO) - Escuta direto do UserSettings
+                val showTutorial by userSettings.showTutorialFlow.collectAsState(initial = true)
+
+                // 3. Lógica de Roteamento de Interface
                 if (showSplash) {
                     VelvetSplashScreen {
-                        showSplash = false
+                        showSplash = false // Ao terminar a splash, o Compose reavalia a tela
                     }
                 } else {
-                    // Passamos o targetScreen para a navegação iniciar na tela certa
-                    VelvetAppNavigation(viewModel, startDestination = targetScreen)
+                    // Se o tutorial nunca foi feito E o usuário está abrindo a Home
+                    if (showTutorial && targetScreen == "home") {
+                        VelvetTutorialScreen(
+                            onTutorialFinished = {
+                                // Quando o usuário clica em "ATIVAR BLINDAGEM", gravamos no DataStore
+                                // e o Compose automaticamente vai pular para o VelvetAppNavigation
+                                lifecycleScope.launch {
+                                    userSettings.disableTutorial()
+                                }
+                            }
+                        )
+                    } else {
+                        // O aplicativo blindado definitivo
+                        // Passamos o targetScreen para a navegação iniciar na tela certa
+                        VelvetAppNavigation(viewModel, startDestination = targetScreen)
+                    }
                 }
             }
         }

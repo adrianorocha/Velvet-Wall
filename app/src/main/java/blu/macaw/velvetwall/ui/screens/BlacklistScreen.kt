@@ -1,6 +1,5 @@
 package blu.macaw.velvetwall.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,10 +46,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import blu.macaw.velvetwall.data.BlockedNumber
-import blu.macaw.velvetwall.ui.DarkBg
 import blu.macaw.velvetwall.MainViewModel
+import blu.macaw.velvetwall.data.BlockedNumber
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
 import blu.macaw.velvetwall.ui.theme.VelvetDark
@@ -82,7 +79,7 @@ fun BlacklistScreen(viewModel: MainViewModel) {
                 .padding(16.dp)
         ) {
             Text(
-                "Lista Negra",
+                "Números Bloqueados",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -113,7 +110,8 @@ fun BlacklistScreen(viewModel: MainViewModel) {
                 onConfirm = { number, reason ->
                     viewModel.addToBlacklist(number, reason)
                     showDialog = false
-                }
+                },
+                tipoLista = "BLACKLIST"
             )
         }
     }
@@ -152,7 +150,7 @@ fun BlacklistItem(item: BlockedNumber,
             IconButton(onClick = onPromote) {
                 Icon(
                     Icons.Default.ThumbUp,
-                    contentDescription = "Mover para Lista Branca",
+                    contentDescription = "Mover para Contatos Seguros",
                     tint = Color.Green
                 )            }
             IconButton(onClick = onDelete) {
@@ -163,14 +161,26 @@ fun BlacklistItem(item: BlockedNumber,
 }
 
 @Composable
-fun AddNumberDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+fun AddNumberDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit, tipoLista:String) {
     var number by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
+    var titleText by remember { mutableStateOf("Bloquear Novo Número") }
+    var titleText2 by remember { mutableStateOf("Motivo (ex: Cobrança)") }
+    var titleText3 by remember { mutableStateOf("BLOQUEAR") }
 
+    if (tipoLista == "BLACKLIST") {
+        titleText = "Bloquear Novo Número"
+        titleText2 = "Motivo (ex: Cobrança)"
+        titleText3 = "BLOQUEAR"
+    } else {
+        titleText = "Adicionar Contato Seguro"
+        titleText2 = "Nome do Contato"
+        titleText3 = "ADICIONAR"
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = VelvetDark,
-        title = { Text("Bloquear Novo Número", color = RoyalCyan) },
+        title = { Text(titleText, color = RoyalCyan) },
         text = {
             Column {
                 OutlinedTextField(
@@ -190,7 +200,7 @@ fun AddNumberDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) 
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it },
-                    label = { Text("Motivo (ex: Cobrança)") },
+                    label = { Text(titleText2) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
@@ -206,7 +216,7 @@ fun AddNumberDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) 
                 onClick = { if (number.isNotEmpty()) onConfirm(number, reason.ifEmpty { "Manual" }) },
                 colors = ButtonDefaults.buttonColors(containerColor = RoyalCyan)
             ) {
-                Text("BLOQUEAR", color = VelvetBlack)
+                Text(titleText3, color = VelvetBlack)
             }
         },
         dismissButton = {
