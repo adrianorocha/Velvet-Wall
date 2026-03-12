@@ -24,6 +24,7 @@ import blu.macaw.velvetwall.R
 import blu.macaw.velvetwall.data.AppDatabase
 import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
+import com.android.billingclient.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -158,6 +159,12 @@ class CallBlockerService : CallScreeningService() {
     }
 
     private fun showUpsellNotification(number: String, reason: String) {
+        val isTester = BuildConfig.VERSION_NAME.contains("alpha", ignoreCase = true) ||
+                BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true)
+        if (isTester || BuildConfig.DEBUG) {
+            Log.d("VELVET_WALL", "Upsell ignorado: Usuário é Tester/Alpha no hardware A56.")
+            return
+        }
         // Notificação especial para converter o usuário
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "BLOCK_EVENTS_CHANNEL"
