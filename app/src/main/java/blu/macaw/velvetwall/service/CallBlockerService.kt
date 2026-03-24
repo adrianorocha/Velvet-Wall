@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
@@ -159,9 +160,10 @@ class CallBlockerService : CallScreeningService() {
     }
 
     private fun showUpsellNotification(number: String, reason: String) {
+        val isDebug = (0 != (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE))
         val isTester = BuildConfig.VERSION_NAME.contains("alpha", ignoreCase = true) ||
                 BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true)
-        if (isTester || BuildConfig.DEBUG) {
+        if (isDebug || isTester) {
             Log.d("VELVET_WALL", "Upsell ignorado: Usuário é Tester/Alpha no hardware A56.")
             return
         }

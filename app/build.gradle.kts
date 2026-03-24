@@ -11,6 +11,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -20,7 +21,7 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
+        versionCode = 20
         versionName = "1.0.0-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

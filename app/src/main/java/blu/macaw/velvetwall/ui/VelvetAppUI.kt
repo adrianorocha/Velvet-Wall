@@ -152,14 +152,15 @@ fun VelvetAppNavigation(
             showPaywall = false
             return@LaunchedEffect
         }
+        showPaywall = false
 
-        when {
+/*        when {
             isPremium -> showPaywall = false
             // Só abre o Paywall se NÃO for premium, se o trial venceu, E se NÃO estiver na tela de sucesso
             (!isPremium && trialStart > 0 && (currentTime - trialStart) > sevenDaysInMillis && !showSuccess) -> {
                 showPaywall = true
             }
-        }
+        }*/
     }
 
     // Box Raiz para permitir a sobreposição da animação de Slide Up
