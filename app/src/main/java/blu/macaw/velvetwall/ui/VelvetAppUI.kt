@@ -128,23 +128,19 @@ fun VelvetAppNavigation(
     val context = LocalContext.current
 
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
-//    val isPremium = true
     val isPremium by viewModel.isPremiumEnabled.collectAsState()
-//    val trialStart = 1
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
     var showPaywall by rememberSaveable { mutableStateOf(false) }
     var forcePremiumState by rememberSaveable { mutableStateOf(false) }
 
     val userIsPro = isPremium || forcePremiumState
-
     val showSuccess by viewModel.showSuccess.collectAsState()
-
     val isRestoringUI by viewModel.isRestoring.collectAsState()
-
     var showBiometricLogs by remember { mutableStateOf(false) }
 
+    // CORREÇÃO APLICADA: 14 dias de Trial
     LaunchedEffect(isPremium, trialStart, showSuccess) {
-        val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
+        val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L // Refatorado para 14 dias
         val currentTime = System.currentTimeMillis()
 
         // SE A TELA DE SUCESSO ESTIVER ATIVA, ABORTA TUDO E FECHA O PAYWALL!
@@ -154,13 +150,13 @@ fun VelvetAppNavigation(
         }
         showPaywall = false
 
-/*        when {
+        when {
             isPremium -> showPaywall = false
-            // Só abre o Paywall se NÃO for premium, se o trial venceu, E se NÃO estiver na tela de sucesso
-            (!isPremium && trialStart > 0 && (currentTime - trialStart) > sevenDaysInMillis && !showSuccess) -> {
+            // Só abre o Paywall se NÃO for premium, se o trial venceu (passou de 14 dias), E se NÃO estiver na tela de sucesso
+            (!isPremium && trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis && !showSuccess) -> {
                 showPaywall = true
             }
-        }*/
+        }
     }
 
     // Box Raiz para permitir a sobreposição da animação de Slide Up
@@ -208,7 +204,7 @@ fun VelvetAppNavigation(
                 startDestination = startDestination,
                 modifier = Modifier.padding(padding)
             ) {
-                composable("home") { HomeScreen(viewModel,onDebugPaywall = { showPaywall = true }) }
+                composable("home") { HomeScreen(viewModel, onDebugPaywall = { showPaywall = true }) }
                 composable("blacklist") { BlacklistScreen(viewModel) }
                 composable("history") { HistoryScreen(viewModel) }
                 composable("settings") {
@@ -253,17 +249,15 @@ fun VelvetAppNavigation(
             )
         }
 
-// NOVA CAMADA: BIOMETRIA DE LOGS (zIndex 15 - Entre o Paywall e o Sucesso)
+        // NOVA CAMADA: BIOMETRIA DE LOGS (zIndex 15 - Entre o Paywall e o Sucesso)
         AnimatedVisibility(
             visible = showBiometricLogs,
             enter = slideInVertically(initialOffsetY = { it }), // Sobe de baixo para cima
             exit = slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier.zIndex(15f)
         ) {
-            // Chamando a tela que criamos, com um botão para voltar
             Box {
                 LogBiometricsScreen()
-
                 // Botão "Voltar" discreto no topo
                 TextButton(
                     onClick = { showBiometricLogs = false },
@@ -273,16 +267,17 @@ fun VelvetAppNavigation(
                 }
             }
         }
+
         AnimatedVisibility(
             visible = showSuccess,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut(),
             modifier = Modifier.zIndex(20f)
         ) {
-            SuccessPurchaseScreen(onGetStarted = { viewModel.dismissSuccessAnimation()
+            SuccessPurchaseScreen(onGetStarted = {
+                viewModel.dismissSuccessAnimation()
                 forcePremiumState = true
                 showPaywall = false
-                viewModel.dismissSuccessAnimation()
             })
         }
     }
@@ -292,17 +287,16 @@ fun VelvetAppNavigation(
  * Modelo de dados para itens de navegação, mantendo o código limpo.
  */
 data class NavigationItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun HomeScreen(viewModel: MainViewModel,
-               onDebugPaywall: () -> Unit) {
+fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
     val context = LocalContext.current
     val isEnabled by viewModel.isServiceActive.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val blockMessage by viewModel.blockEvent.collectAsState(initial = "")
 
     var showDebugMenu by remember { mutableStateOf(false) }
-
     var debugClickCount by remember { mutableStateOf(0) }
 
     val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -376,14 +370,12 @@ fun HomeScreen(viewModel: MainViewModel,
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null, // Deixa o clique "fantasma" (sem brilho)
+                    indication = null,
                     onClick = {
-                        // A sua lógica entra exatamente aqui:
                         debugClickCount++
-
                         if (debugClickCount >= 5) {
                             showDebugMenu = true
-                            debugClickCount = 0 // Reseta para a próxima vez
+                            debugClickCount = 0
                         }
                     }
                 )
@@ -394,16 +386,6 @@ fun HomeScreen(viewModel: MainViewModel,
                 ){
                     VelvetPulsingShield(isServiceActive = isEnabled)
                 }
-
-/*                if (isEnabled) {
-                    Surface(Modifier.size(160.dp), shape = CircleShape, color = RoyalCyan.copy(alpha = 0.1f)) {}
-                }
-                Icon(
-                    imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.GppBad,
-                    contentDescription = null,
-                    tint = if (isEnabled) RoyalCyan else Color.Gray,
-                    modifier = Modifier.size(120.dp)
-                )*/
             }
 
             Spacer(Modifier.height(32.dp))
@@ -425,7 +407,7 @@ fun HomeScreen(viewModel: MainViewModel,
                 modifier = Modifier.padding(top = 12.dp, bottom = 48.dp)
             )
 
-// BOTÃO DE AÇÃO PREMIUM
+            // BOTÃO DE AÇÃO PREMIUM
             Button(
                 onClick = {
                     val roleManager = context.getSystemService(RoleManager::class.java)
@@ -478,54 +460,7 @@ fun HomeScreen(viewModel: MainViewModel,
         }
     }
 }
-/*@Composable
-fun BlacklistScreen(viewModel: MainViewModel) {
-    // Coleta a lista do banco de dados
-    val blacklist by viewModel.blacklist.collectAsState(initial = emptyList())
 
-    Column(modifier = Modifier.fillMaxSize().background(VelvetBlack).padding(16.dp)) {
-        Text(
-            "Lista Negra",
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        LazyColumn {
-            items(blacklist) { item ->
-                // O item da lista
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = VelvetDark),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = item.number, // Número
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = RoyalCyan,
-                                fontWeight = FontWeight.Bold
-                            )
-                            // AQUI É ONDE DAVA O ERRO:
-                            Text(
-                                text = "Motivo: ${item.reason}", // Agora deve funcionar
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                        }
-                        IconButton(onClick = { viewModel.removeFromBlacklist(item) }) {
-                            Icon(Icons.Default.Delete, null, tint = Color(0xFFEF4444))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}*/
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 fun HistoryScreen(viewModel: MainViewModel) {
@@ -576,7 +511,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
             }
 
             if (history.isNotEmpty()) {
-                IconButton(onClick = { viewModel.clearEverything() }) { // Usa a função de limpeza total que criamos
+                IconButton(onClick = { viewModel.clearEverything() }) {
                     Icon(Icons.Default.DeleteSweep, null, tint = Color(0xFFEF4444))
                 }
             }
@@ -595,13 +530,8 @@ fun HistoryScreen(viewModel: MainViewModel) {
                     HistoryItem(
                         log = log,
                         modifier = Modifier.animateItem(
-                            // 1. O fadeInSpec espera um objeto de animação, ex: tween, spring
                             fadeInSpec = tween(durationMillis = 300),
-
-                            // 2. O fadeOutSpec também espera um objeto de animação Float
                             fadeOutSpec = tween(durationMillis = 200),
-
-                            // 3. O placementSpec cuida do movimento dos outros itens
                             placementSpec = spring(stiffness = Spring.StiffnessLow)
                         ),
                         onClick = { selectedLog = log }
@@ -627,6 +557,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
         )
     }
 }
+
 @Composable
 fun HistoryItem(
     log: BlockedCallLog,
@@ -686,7 +617,6 @@ fun EmptyStateHistory() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Ícone grande com opacidade reduzida para um visual elegante
             Icon(
                 imageVector = Icons.Default.History,
                 contentDescription = null,
@@ -717,7 +647,7 @@ fun DecisionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A), // VelvetDark profundo
+        containerColor = Color(0xFF0F172A),
         title = {
             Text(
                 text = log.number,
@@ -745,4 +675,3 @@ fun DecisionDialog(
         shape = RoundedCornerShape(16.dp)
     )
 }
-

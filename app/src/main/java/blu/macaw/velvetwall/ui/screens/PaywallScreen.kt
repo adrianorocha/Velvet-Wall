@@ -1,5 +1,6 @@
 package blu.macaw.velvetwall.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -31,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,33 +51,45 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
+// 1. A MÁQUINA DE ESTADOS DO PREÇO
+sealed class PaywallPriceState {
+    object Loading : PaywallPriceState()
+    data class Active(
+        val currentPrice: String,
+        val originalPrice: String? = null, // Se vier preenchido, ativa a UI de promoção
+        val discountTag: String? = null    // Ex: "OFERTA DE LANÇAMENTO"
+    ) : PaywallPriceState()
+
+    object Error : PaywallPriceState()
+}
+
 @Composable
 fun PaywallScreen(
+    priceState: PaywallPriceState = PaywallPriceState.Loading, // Agora a tela recebe o estado
     isRestoring: Boolean,
     onBuyClick: () -> Unit,
     onRestoreClick: () -> Unit,
     onLogsClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
-    val context = LocalContext.current // Necessário para o Toast
+    val context = LocalContext.current
 
     val surfaceDark = Color(0xFF1E293B)
     val textMuted = Color(0xFF94A3B8)
 
-    // Brush para o fundo da tela
     val bgBrush = Brush.verticalGradient(
         colors = listOf(VelvetBlack, Color(0xFF020617))
     )
 
-    // Brush animado para o efeito Shimmer no botão
     val shimmerBrush = rememberAnimatedShimmerBrush(
-        shimmerColor = Color.White.copy(alpha = 0.4f), // Cor do brilho
-        backgroundColor = Color.Transparent // Fundo transparente para sobrepor o botão
+        shimmerColor = Color.White.copy(alpha = 0.4f),
+        backgroundColor = Color.Transparent
     )
 
     Box(
@@ -82,7 +97,6 @@ fun PaywallScreen(
             .fillMaxSize()
             .background(bgBrush)
     ) {
-        // Botão de fechar
         IconButton(
             onClick = onCloseClick,
             modifier = Modifier
@@ -99,7 +113,6 @@ fun PaywallScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 1. Header com Ícone Premium
             Surface(
                 modifier = Modifier.size(80.dp),
                 shape = RoundedCornerShape(20.dp),
@@ -136,7 +149,6 @@ fun PaywallScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // 2. Lista de Benefícios
             Card(
                 colors = CardDefaults.cardColors(containerColor = surfaceDark),
                 shape = RoundedCornerShape(24.dp),
@@ -158,63 +170,115 @@ fun PaywallScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // 3. Preço
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "PAGAMENTO ÚNICO",
-                    color = RoyalCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        "R$",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(bottom = 8.dp, end = 4.dp)
-                    )
-                    Text(
-                        "29,90",
-                        color = Color.White,
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Black
-                    )
+            // 2. ZONA DE PREÇO DINÂMICA
+            Box(modifier = Modifier.height(90.dp), contentAlignment = Alignment.Center) {
+                AnimatedContent(
+                    targetState = priceState,
+                    label = "PriceAnimation"
+                ) { state ->
+                    when (state) {
+                        is PaywallPriceState.Loading -> {
+                            // Skeleton Loading
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(100.dp)
+                                        .height(14.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(surfaceDark)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(160.dp)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(surfaceDark)
+                                )
+                            }
+                        }
+
+                        is PaywallPriceState.Error -> {
+                            Text("Verifique sua conexão.", color = Color.Red, fontSize = 14.sp)
+                        }
+
+                        is PaywallPriceState.Active -> {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                // Tag de Oferta ou Pagamento Único
+                                Text(
+                                    text = state.discountTag ?: "PAGAMENTO ÚNICO",
+                                    color = if (state.discountTag != null) Color(0xFFFFD700) else RoyalCyan,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    // Preço Antigo (Riscado) se for Promoção
+                                    if (state.originalPrice != null) {
+                                        Text(
+                                            text = state.originalPrice,
+                                            color = textMuted.copy(alpha = 0.6f),
+                                            fontSize = 20.sp,
+                                            style = androidx.compose.ui.text.TextStyle(
+                                                textDecoration = TextDecoration.LineThrough
+                                            ),
+                                            modifier = Modifier.padding(bottom = 6.dp, end = 8.dp)
+                                        )
+                                    }
+
+                                    // Preço Atual
+                                    Text(
+                                        text = state.currentPrice,
+                                        color = Color.White,
+                                        fontSize = 46.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                                Text(
+                                    "Sem assinaturas. Para sempre.",
+                                    color = textMuted,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
                 }
-                Text("Sem assinaturas. Para sempre.", color = textMuted, fontSize = 14.sp)
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // 4. Botão de Compra com Shimmer Animado
+            // 3. TRAVA DO BOTÃO (Só habilita se carregou o preço)
+            val isBuyEnabled = !isRestoring && priceState is PaywallPriceState.Active
+
             Button(
                 onClick = onBuyClick,
-                enabled = !isRestoring,
+                enabled = isBuyEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RoyalCyan),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RoyalCyan,
+                    disabledContainerColor = surfaceDark
+                ),
                 shape = RoundedCornerShape(16.dp),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
             ) {
-                // Usamos um Box para sobrepor o efeito shimmer ao texto
                 Box(contentAlignment = Alignment.Center) {
-                    // O texto base do botão
                     Text(
                         text = "TORNAR-SE PRO AGORA",
-                        color = VelvetBlack,
+                        color = if (isBuyEnabled) VelvetBlack else textMuted,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp
                     )
 
-                    // O efeito shimmer aplicado sobre o texto usando um Box com background brush
-                    // e cortado no formato do texto (simplificado aqui como um retângulo sobreposto)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp) // Mesma altura do botão
-                            .background(shimmerBrush)
-                    )
+                    if (isBuyEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp)
+                                .background(shimmerBrush)
+                        )
+                    }
                 }
             }
 
@@ -225,8 +289,7 @@ fun PaywallScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isRestoring) {
-                        // Rodinha de progresso no lugar do ícone ou ao lado do texto
-                        androidx.compose.material3.CircularProgressIndicator(
+                        CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
                             color = RoyalCyan
@@ -242,8 +305,6 @@ fun PaywallScreen(
     }
 }
 
-// --- Estruturas Auxiliares ---
-
 private data class FeatureItem(val icon: ImageVector, val text: String)
 
 @Composable
@@ -258,9 +319,6 @@ private fun FeatureRow(icon: ImageVector, text: String, color: Color) {
     }
 }
 
-/**
- * Cria um Brush animado que simula um efeito de brilho passando.
- */
 @Composable
 fun rememberAnimatedShimmerBrush(
     shimmerColor: Color,
@@ -270,7 +328,7 @@ fun rememberAnimatedShimmerBrush(
     val transition = rememberInfiniteTransition(label = "ShimmerTransition")
     val translateAnimation by transition.animateFloat(
         initialValue = 0f,
-        targetValue = 1000f, // Valor arbitrário que cobre a largura do componente
+        targetValue = 1000f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = durationMillis,

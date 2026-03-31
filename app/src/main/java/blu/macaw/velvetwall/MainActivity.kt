@@ -27,7 +27,7 @@ import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.ui.VelvetAppNavigation
 import blu.macaw.velvetwall.ui.screens.VelvetSplashScreen
 import blu.macaw.velvetwall.ui.screens.VelvetTutorialScreen
-import blu.macaw.velvetwall.ui.theme.MainViewModelFactory
+import blu.macaw.velvetwall.MainViewModelFactory
 import blu.macaw.velvetwall.ui.theme.VelvetWallTheme
 // import blu.macaw.velvetwall.ui.screens.VelvetTutorialScreen // Descomente e ajuste o caminho se necessário
 import kotlinx.coroutines.flow.first

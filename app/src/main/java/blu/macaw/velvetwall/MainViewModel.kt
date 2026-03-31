@@ -9,6 +9,8 @@ import android.os.Build
 import android.util.Log
 import androidx.datastore.dataStore
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -302,5 +304,20 @@ class MainViewModel(
         viewModelScope.launch {
             userSettings.setTutorialCompleted()
         }
+    }
+}
+
+// Factory
+class MainViewModelFactory(
+    private val application: Application,
+    private val repository: CallRepository,
+    private val userSettings: UserSettings
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return MainViewModel(application, repository, userSettings) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
