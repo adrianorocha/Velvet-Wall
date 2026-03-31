@@ -7,11 +7,11 @@ import android.app.role.RoleManager
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import androidx.datastore.dataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -22,10 +22,13 @@ import blu.macaw.velvetwall.data.CallRepository
 import blu.macaw.velvetwall.data.UserSettings
 import blu.macaw.velvetwall.data.WhiteListNumber
 import blu.macaw.velvetwall.data.worker.CleanupWorker
+import blu.macaw.velvetwall.ui.screens.PaywallPriceState
 import blu.macaw.velvetwall.utils.BillingHelper
 import blu.macaw.velvetwall.utils.NotificationHelper
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.QueryProductDetailsParams
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,7 +38,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import java.util.prefs.Preferences
 
 class MainViewModel(
     application: Application,
@@ -48,6 +50,16 @@ class MainViewModel(
         userSettings = userSettings,
         onSuccess = { triggerSuccess() }
     )
+    // 1. A "Caixa Privada" (Onde o ViewModel altera o valor)
+// 1. O "Backing Property" (Privado): Onde o ViewModel altera o valor internamente.
+    // Começa como Loading para mostrar o esqueleto cinza que você viu na tela.
+    private lateinit var billingClient: BillingClient
+
+    private val _paywallState = MutableStateFlow<PaywallPriceState>(PaywallPriceState.Loading)
+
+    // 2. A "Propriedade Pública": O que a sua PaywallScreen observa.
+    // Ela é imutável (read-only) para a UI, garantindo a segurança dos dados.
+    val paywallState: StateFlow<PaywallPriceState> = _paywallState.asStateFlow()
 
     private val _isRestoring = MutableStateFlow(false)
     val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
@@ -81,8 +93,10 @@ class MainViewModel(
 
     init {
         // Conexão imediata com a Play Store para validação de licenças
+
         billingHelper.startConnection()
 
+        fetchPremiumPrice()
         billingHelper.checkExistingPurchases { isPro ->
             viewModelScope.launch {
                 userSettings.savePremiumStatus(isPro) // Faz o status "grudar" no banco
@@ -97,6 +111,7 @@ class MainViewModel(
                 }
             }
         }
+
     }
 
     /**
@@ -127,7 +142,6 @@ class MainViewModel(
                         Log.d("VELVET", "Timeout: Google não respondeu, destravando UI.")
                     }
                 }
-
                 billingHelper.queryExistingPurchases { isPro ->
                     // O callback precisa rodar no escopo da Main thread para atualizar a UI
                     viewModelScope.launch {
@@ -305,6 +319,55 @@ class MainViewModel(
             userSettings.setTutorialCompleted()
         }
     }
+
+    /**
+     * Função que busca o preço real no Google Play e popula a máquina de estados.
+     * Esta versão é blindada e repleta de logs para debug.
+     */
+    fun fetchPremiumPrice() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _paywallState.value = PaywallPriceState.Active(currentPrice = "R$ 99,90 (TESTE)")
+            //_paywallState.value = PaywallPriceState.Loading
+
+            // 1. GARANTE CONEXÃO (Se não estiver conectado, tenta reconectar)
+            if (!::billingClient.isInitialized || !billingClient.isReady) {
+                _paywallState.value = PaywallPriceState.Error
+                return@launch
+            }
+
+            val queryProductDetailsParams = QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId("velvet_wall_pro_lifetime") // CONFERIR ESTE ID!
+                            .setProductType(BillingClient.ProductType.INAPP)
+                            .build()
+                    )
+                )
+                .build()
+
+            billingClient.queryProductDetailsAsync(queryProductDetailsParams) { billingResult, productDetailsList ->
+                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                    val product = productDetailsList.firstOrNull()
+
+                    if (product != null) {
+                        val price = product.oneTimePurchaseOfferDetails?.formattedPrice ?: "R$ 29,90"
+                        Log.d("VELVET_BILLING", "Preço recuperado com sucesso: $price")
+
+                        _paywallState.value = PaywallPriceState.Active(currentPrice = price)
+                    } else {
+                        // O Google respondeu OK, mas a lista veio vazia (ID errado ou produto inativo)
+                        Log.e("VELVET_BILLING", "Produto não encontrado no Console. Verifique o ID!")
+                        _paywallState.value = PaywallPriceState.Error
+                    }
+                } else {
+                    // Erro de resposta do Google (Ex: 3 - Billing Unavailable, 4 - Item Unavailable)
+                    Log.e("VELVET_BILLING", "Erro na API do Google: ${billingResult.responseCode} - ${billingResult.debugMessage}")
+                    _paywallState.value = PaywallPriceState.Error
+                }
+            }
+        }
+    }
 }
 
 // Factory
@@ -321,3 +384,4 @@ class MainViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

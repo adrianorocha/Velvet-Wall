@@ -130,32 +130,37 @@ fun VelvetAppNavigation(
     // --- GESTÃO DE FATURAMENTO E TRIAL ---
     val isPremium by viewModel.isPremiumEnabled.collectAsState()
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
+
+    // 1. COMEÇA COMO FALSE PARA NÃO PISCAR NA TELA
     var showPaywall by rememberSaveable { mutableStateOf(false) }
     var forcePremiumState by rememberSaveable { mutableStateOf(false) }
+
+    // 2. A NOSSA TRAVA DE DEBUG!
+    var isManualDebug by remember { mutableStateOf(false) }
 
     val userIsPro = isPremium || forcePremiumState
     val showSuccess by viewModel.showSuccess.collectAsState()
     val isRestoringUI by viewModel.isRestoring.collectAsState()
     var showBiometricLogs by remember { mutableStateOf(false) }
+    val priceState by viewModel.paywallState.collectAsState()
 
-    // CORREÇÃO APLICADA: 14 dias de Trial
+    // 🛡️ 3. LAUNCHED EFFECT BLINDADO
     LaunchedEffect(isPremium, trialStart, showSuccess) {
-        val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L // Refatorado para 14 dias
+        val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L
         val currentTime = System.currentTimeMillis()
 
-        // SE A TELA DE SUCESSO ESTIVER ATIVA, ABORTA TUDO E FECHA O PAYWALL!
-        if (showSuccess) {
+        // BYPASS: Se clicou no botão de Debug, interrompe a lógica automática para a tela não sumir
+        if (isManualDebug) return@LaunchedEffect
+
+        // SE COMPROU OU DEU SUCESSO, FECHA E ABORTA
+        if (showSuccess || isPremium) {
             showPaywall = false
             return@LaunchedEffect
         }
-        showPaywall = false
 
-        when {
-            isPremium -> showPaywall = false
-            // Só abre o Paywall se NÃO for premium, se o trial venceu (passou de 14 dias), E se NÃO estiver na tela de sucesso
-            (!isPremium && trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis && !showSuccess) -> {
-                showPaywall = true
-            }
+        // ABERTURA AUTOMÁTICA (Só abre se o trial venceu)
+        if (trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis) {
+            showPaywall = true
         }
     }
 
@@ -204,7 +209,18 @@ fun VelvetAppNavigation(
                 startDestination = startDestination,
                 modifier = Modifier.padding(padding)
             ) {
-                composable("home") { HomeScreen(viewModel, onDebugPaywall = { showPaywall = true }) }
+                // 🛠️ 4. GATILHO COMPLETO NA HOME SCREEN
+                composable("home") {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onDebugPaywall = {
+                            isManualDebug = true          // Ativa a trava de debug
+                            showPaywall = true            // Abre a tela
+                            viewModel.fetchPremiumPrice() // Busca o preço real no Google Play!
+                        }
+                    )
+                }
+
                 composable("blacklist") { BlacklistScreen(viewModel) }
                 composable("history") { HistoryScreen(viewModel) }
                 composable("settings") {
@@ -228,37 +244,40 @@ fun VelvetAppNavigation(
 
         // 2. A "MÁGICA" DO SLIDE UP (PAYWALL)
         AnimatedVisibility(
-            visible = showPaywall && !userIsPro,
+            visible = showPaywall && (!userIsPro || isManualDebug),
             enter = slideInVertically(
-                initialOffsetY = { fullHeight -> fullHeight }, // Inicia do fundo da tela
+                initialOffsetY = { fullHeight -> fullHeight },
                 animationSpec = tween(durationMillis = 600)
             ),
             exit = slideOutVertically(
-                targetOffsetY = { fullHeight -> fullHeight }, // Volta para o fundo
+                targetOffsetY = { fullHeight -> fullHeight },
                 animationSpec = tween(durationMillis = 500)
             ),
-            modifier = Modifier.zIndex(10f) // Garante que sobreponha a BottomBar
+            modifier = Modifier.zIndex(10f)
         ) {
             val activity = context as? Activity
             PaywallScreen(
+                priceState = priceState, // 🛠️ 5. Passando o estado do preço!
                 isRestoring = isRestoringUI,
                 onBuyClick = { activity?.let { viewModel.buyPremium(it) } },
                 onRestoreClick = { viewModel.restorePremium(context) },
-                onCloseClick = { showPaywall = false },
+                onCloseClick = {
+                    showPaywall = false
+                    isManualDebug = false // 🛠️ 6. Reseta a trava ao fechar o Paywall
+                },
                 onLogsClick = { showBiometricLogs = true }
             )
         }
 
-        // NOVA CAMADA: BIOMETRIA DE LOGS (zIndex 15 - Entre o Paywall e o Sucesso)
+        // NOVA CAMADA: BIOMETRIA DE LOGS
         AnimatedVisibility(
             visible = showBiometricLogs,
-            enter = slideInVertically(initialOffsetY = { it }), // Sobe de baixo para cima
+            enter = slideInVertically(initialOffsetY = { it }),
             exit = slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier.zIndex(15f)
         ) {
             Box {
                 LogBiometricsScreen()
-                // Botão "Voltar" discreto no topo
                 TextButton(
                     onClick = { showBiometricLogs = false },
                     modifier = Modifier.padding(16.dp).align(Alignment.TopStart)
@@ -282,7 +301,6 @@ fun VelvetAppNavigation(
         }
     }
 }
-
 /**
  * Modelo de dados para itens de navegação, mantendo o código limpo.
  */
