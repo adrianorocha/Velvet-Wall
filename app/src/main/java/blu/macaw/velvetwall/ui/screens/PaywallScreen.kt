@@ -105,6 +105,7 @@ fun PaywallScreen(
     )
 
     val heartbeatModifier = rememberAnimatedHeartbeatModifier()
+    val shakeModifier = rememberAnimatedShakeModifier()
 
     Box(
         modifier = Modifier
@@ -205,7 +206,7 @@ fun PaywallScreen(
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(30.dp))
 
             // 💰 ZONA DE PREÇO DINÂMICA
             Box(
@@ -251,10 +252,12 @@ fun PaywallScreen(
                                         Text(
                                             text = state.discountTag ?: "",
                                             color = Color(0xFFFFD700),
-                                            fontSize = 11.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 2.sp,
-                                            modifier = Modifier.padding(bottom = 4.dp)
+                                            modifier = Modifier
+                                                .padding(bottom = 4.dp)
+                                                .then(shakeModifier)
                                         )
                                     }
 
@@ -425,34 +428,90 @@ fun rememberAnimatedShimmerBrush(shimmerColor: Color, backgroundColor: Color, du
 @Composable
 fun rememberAnimatedHeartbeatModifier(
     durationMillis: Int = 1000,
-    lubScale: Float = 1.12f, dubScale: Float = 1.18f,
-    lubJump: Dp = (-3).dp, dubJump: Dp = (-5).dp
+    lubScale: Float = 1.12f,
+    dubScale: Float = 1.18f,
+    lubJump: Dp = (-3).dp,
+    dubJump: Dp = (-5).dp
 ): Modifier {
     val transition = rememberInfiniteTransition(label = "HeartbeatTransition")
     val density = LocalDensity.current
+
     val lubJumpPx = with(density) { lubJump.toPx() }
     val dubJumpPx = with(density) { dubJump.toPx() }
     val intermediateJumpPx = with(density) { (-1).dp.toPx() }
 
     val scaleAnim by transition.animateFloat(
-        initialValue = 1.0f, targetValue = 1.0f,
+        initialValue = 1.0f,
+        targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
                 this.durationMillis = durationMillis
                 1.0f at 0; 1.0f at 100; lubScale at 200; 1.05f at 300; dubScale at 450; 1.0f at 600; 1.0f at durationMillis
             }
-        ), label = "HeartbeatScale"
+        ),
+        label = "HeartbeatScale"
     )
 
     val translationAnim by transition.animateFloat(
-        initialValue = 0f, targetValue = 0f,
+        initialValue = 0f,
+        targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
                 this.durationMillis = durationMillis
                 0f at 0; 0f at 100; lubJumpPx at 200; intermediateJumpPx at 300; dubJumpPx at 450; 0f at 600; 0f at durationMillis
             }
-        ), label = "HeartbeatJump"
+        ),
+        label = "HeartbeatJump"
     )
 
-    return Modifier.graphicsLayer { scaleX = scaleAnim; scaleY = scaleAnim; translationY = translationAnim }
+    return Modifier.graphicsLayer {
+        scaleX = scaleAnim
+        scaleY = scaleAnim
+        translationY = translationAnim
+    }
+}
+
+/**
+ * 🛠️ NOVO: ANIMAÇÃO "CHACOALHAR" (Shake): Cria um movimento horizontal rápido e intermitente.
+ */
+@Composable
+fun rememberAnimatedShakeModifier(
+    durationMillis: Int = 2500, // Ciclo mais longo para não cansar a vista
+    shakeIntensity: Dp = 4.dp // Intensidade do balanço horizontal
+): Modifier {
+    val transition = rememberInfiniteTransition(label = "ShakeTransition")
+    val density = LocalDensity.current
+
+    // Convertemos a intensidade para pixels (toPx) para a graphicsLayer
+    val shakeIntensityPx = with(density) { shakeIntensity.toPx() }
+
+    // Animação de Translação Horizontal (Shake)
+    val translationXAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                this.durationMillis = durationMillis
+
+                // ⏳ Período de Silêncio (2 segundos parado)
+                0f at 0
+                0f at 1900
+
+                // ⚡ O CHACOALHAR RÁPIDO (Lub-Dub horizontal)
+                -shakeIntensityPx at 1950 // Esquerda rápida
+                shakeIntensityPx at 2050  // Direita rápida
+                -(shakeIntensityPx / 1.5f) at 2150 // Esquerda mais fraca (amortecimento)
+                (shakeIntensityPx / 2f) at 2250  // Direita mais fraca
+                0f at 2350 // Volta ao centro
+
+                // Volta ao Silêncio
+                0f at durationMillis
+            }
+        ),
+        label = "ShakeTranslationX"
+    )
+
+    return Modifier.graphicsLayer {
+        translationX = translationXAnim
+    }
 }
