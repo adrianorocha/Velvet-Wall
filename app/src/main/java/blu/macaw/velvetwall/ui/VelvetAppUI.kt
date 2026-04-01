@@ -46,7 +46,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -67,7 +66,6 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -88,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -99,20 +98,18 @@ import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.data.BlockedCallLog
 import blu.macaw.velvetwall.service.components.HelpScreen
 import blu.macaw.velvetwall.ui.screens.BlacklistScreen
+import blu.macaw.velvetwall.ui.screens.LogBiometricsScreen
 import blu.macaw.velvetwall.ui.screens.PaywallScreen
 import blu.macaw.velvetwall.ui.screens.SettingsScreen
 import blu.macaw.velvetwall.ui.screens.SuccessPurchaseScreen
+import blu.macaw.velvetwall.ui.screens.VelvetPulsingShield
 import blu.macaw.velvetwall.ui.screens.WhitelistScreen
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
-import kotlinx.coroutines.delay
+import blu.macaw.velvetwall.utils.BiometricHelper
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import blu.macaw.velvetwall.utils.BiometricHelper
-import androidx.fragment.app.FragmentActivity
-import blu.macaw.velvetwall.ui.screens.LogBiometricsScreen
-import blu.macaw.velvetwall.ui.screens.VelvetPulsingShield
 
 val DarkBg = Color(0xFF0F172A)
 
@@ -127,44 +124,52 @@ fun VelvetAppNavigation(
     val currentDestination = navBackStackEntry?.destination
     val context = LocalContext.current
 
-    // --- GESTÃO DE FATURAMENTO E TRIAL ---
+    // --- 🚨 MODO DE SIMULAÇÃO DA BLU MACAW 🚨 ---
+    // Mude para 'false' quando for publicar na Play Store!
+    val DEBUG_SIMULATE_TRIAL_EXPIRED = true
+
+    // --- ESTADOS ---
     val isPremium by viewModel.isPremiumEnabled.collectAsState()
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
+    val showSuccess by viewModel.showSuccess.collectAsState()
+    val priceState by viewModel.paywallState.collectAsState()
+    val isRestoringUI by viewModel.isRestoring.collectAsState()
 
-    // 1. COMEÇA COMO FALSE PARA NÃO PISCAR NA TELA
+    // --- CONTROLES DE UI ---
     var showPaywall by rememberSaveable { mutableStateOf(false) }
     var forcePremiumState by rememberSaveable { mutableStateOf(false) }
-
-    // 2. A NOSSA TRAVA DE DEBUG!
     var isManualDebug by remember { mutableStateOf(false) }
+    var showBiometricLogs by remember { mutableStateOf(false) }
 
     val userIsPro = isPremium || forcePremiumState
-    val showSuccess by viewModel.showSuccess.collectAsState()
-    val isRestoringUI by viewModel.isRestoring.collectAsState()
-    var showBiometricLogs by remember { mutableStateOf(false) }
-    val priceState by viewModel.paywallState.collectAsState()
 
-    // 🛡️ 3. LAUNCHED EFFECT BLINDADO
-    LaunchedEffect(isPremium, trialStart, showSuccess) {
-        val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L
-        val currentTime = System.currentTimeMillis()
-
-        // BYPASS: Se clicou no botão de Debug, interrompe a lógica automática para a tela não sumir
+    // 🛡️ LAUNCHED EFFECT: O CORAÇÃO DA REGRA DE NEGÓCIO
+    LaunchedEffect(isPremium, trialStart, showSuccess, isManualDebug) {
+        // Se abriu via botão secreto, não mexe mais.
         if (isManualDebug) return@LaunchedEffect
 
-        // SE COMPROU OU DEU SUCESSO, FECHA E ABORTA
+        // Se o usuário comprou, fecha tudo.
         if (showSuccess || isPremium) {
             showPaywall = false
             return@LaunchedEffect
         }
 
-        // ABERTURA AUTOMÁTICA (Só abre se o trial venceu)
-        if (trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis) {
+        // ⏳ MÁQUINA DO TEMPO: Verifica se o trial expirou
+        val isTrialExpired = if (DEBUG_SIMULATE_TRIAL_EXPIRED) {
+            true // Simula imediatamente que os 14 dias já passaram!
+        } else {
+            val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L
+            val currentTime = System.currentTimeMillis()
+            trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis
+        }
+
+        // Se não é PRO e o tempo (ou a simulação) acabou, ABRIR PAYWALL!
+        if (!userIsPro && isTrialExpired) {
             showPaywall = true
+            viewModel.fetchPremiumPrice() // 💰 Adicionado! Senão ficaria preso no carregamento.
         }
     }
 
-    // Box Raiz para permitir a sobreposição da animação de Slide Up
     Box(modifier = Modifier.fillMaxSize()) {
 
         // 1. CONTEÚDO PRINCIPAL (SCAFFOLD)
@@ -209,14 +214,14 @@ fun VelvetAppNavigation(
                 startDestination = startDestination,
                 modifier = Modifier.padding(padding)
             ) {
-                // 🛠️ 4. GATILHO COMPLETO NA HOME SCREEN
                 composable("home") {
                     HomeScreen(
                         viewModel = viewModel,
                         onDebugPaywall = {
-                            isManualDebug = true          // Ativa a trava de debug
-                            showPaywall = true            // Abre a tela
-                            viewModel.fetchPremiumPrice() // Busca o preço real no Google Play!
+                            forcePremiumState = false
+                            isManualDebug = true
+                            showPaywall = true
+                            viewModel.fetchPremiumPrice()
                         }
                     )
                 }
@@ -246,24 +251,24 @@ fun VelvetAppNavigation(
         AnimatedVisibility(
             visible = showPaywall && (!userIsPro || isManualDebug),
             enter = slideInVertically(
-                initialOffsetY = { fullHeight -> fullHeight },
+                initialOffsetY = { it },
                 animationSpec = tween(durationMillis = 600)
             ),
             exit = slideOutVertically(
-                targetOffsetY = { fullHeight -> fullHeight },
+                targetOffsetY = { it },
                 animationSpec = tween(durationMillis = 500)
             ),
             modifier = Modifier.zIndex(10f)
         ) {
             val activity = context as? Activity
             PaywallScreen(
-                priceState = priceState, // 🛠️ 5. Passando o estado do preço!
+                priceState = priceState,
                 isRestoring = isRestoringUI,
                 onBuyClick = { activity?.let { viewModel.buyPremium(it) } },
                 onRestoreClick = { viewModel.restorePremium(context) },
                 onCloseClick = {
                     showPaywall = false
-                    isManualDebug = false // 🛠️ 6. Reseta a trava ao fechar o Paywall
+                    isManualDebug = false
                 },
                 onLogsClick = { showBiometricLogs = true }
             )
@@ -300,8 +305,7 @@ fun VelvetAppNavigation(
             })
         }
     }
-}
-/**
+}/**
  * Modelo de dados para itens de navegação, mantendo o código limpo.
  */
 data class NavigationItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)

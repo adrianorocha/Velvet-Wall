@@ -11,7 +11,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -26,6 +25,8 @@ import blu.macaw.velvetwall.ui.screens.PaywallPriceState
 import blu.macaw.velvetwall.utils.BillingHelper
 import blu.macaw.velvetwall.utils.NotificationHelper
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.BillingClientStateListener
+import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.QueryProductDetailsParams
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -45,64 +46,73 @@ class MainViewModel(
     private val userSettings: UserSettings
 ) : AndroidViewModel(application) {
 
+    // --- INSTÂNCIAS DE FATURAMENTO ---
     private val billingHelper = BillingHelper(
         context = application,
         userSettings = userSettings,
         onSuccess = { triggerSuccess() }
     )
-    // 1. A "Caixa Privada" (Onde o ViewModel altera o valor)
-// 1. O "Backing Property" (Privado): Onde o ViewModel altera o valor internamente.
-    // Começa como Loading para mostrar o esqueleto cinza que você viu na tela.
+
+    // 🛠️ CORREÇÃO: Variável do Google Play declarada
     private lateinit var billingClient: BillingClient
 
+    // --- CONTROLES DO PAYWALL ---
     private val _paywallState = MutableStateFlow<PaywallPriceState>(PaywallPriceState.Loading)
-
-    // 2. A "Propriedade Pública": O que a sua PaywallScreen observa.
-    // Ela é imutável (read-only) para a UI, garantindo a segurança dos dados.
     val paywallState: StateFlow<PaywallPriceState> = _paywallState.asStateFlow()
 
     private val _isRestoring = MutableStateFlow(false)
     val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
 
-    // --- ESTADOS DE FATURAMENTO (BILLING) ---
-
-    /**
-     * Observa o status Premium em tempo real para liberar recursos de elite.
-     */
+    // --- ESTADOS DE FATURAMENTO (FLOWS) ---
     val isPremiumEnabled: StateFlow<Boolean> = userSettings.isPremiumFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Companion.WhileSubscribed(5000),
         initialValue = false
     )
 
-    val showSuccess: StateFlow<Boolean> = userSettings.showSuccess
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Companion.WhileSubscribed(5000),
-            initialValue = false
-        )
-    /**
-     * Monitora o início da degustação para controle de Paywall.
-     */
+    val showSuccess: StateFlow<Boolean> = userSettings.showSuccess.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Companion.WhileSubscribed(5000),
+        initialValue = false
+    )
+
     val trialStartTimestamp: StateFlow<Long> = userSettings.trialStartFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Companion.WhileSubscribed(5000),
         initialValue = 0L
     )
 
-
     init {
-        // Conexão imediata com a Play Store para validação de licenças
+        // 🛠️ CORREÇÃO: Inicializando a conexão com a Play Store para a query de preço
+        billingClient = BillingClient.newBuilder(application)
+            .setListener { _, _ -> } // Não gerencia compras aqui, só consulta preços
+            .enablePendingPurchases()
+            .build()
+
+        billingClient.startConnection(object : BillingClientStateListener {
+            override fun onBillingSetupFinished(billingResult: BillingResult) {
+                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                    Log.d("VELVET_BILLING", "✅ Conexão estabelecida com a Play Store.")
+                    // Já tenta buscar o preço assim que o banco abrir
+                    fetchPremiumPrice()
+                } else {
+                    Log.e("VELVET_BILLING", "❌ Erro ao conectar na Play Store: ${billingResult.responseCode}")
+                }
+            }
+
+            override fun onBillingServiceDisconnected() {
+                Log.w("VELVET_BILLING", "⚠️ Conexão perdida com a Play Store.")
+            }
+        })
 
         billingHelper.startConnection()
 
-        fetchPremiumPrice()
         billingHelper.checkExistingPurchases { isPro ->
             viewModelScope.launch {
-                userSettings.savePremiumStatus(isPro) // Faz o status "grudar" no banco
+                userSettings.savePremiumStatus(isPro)
             }
         }
-        // Feedback visual imediato ao detectar um bloqueio no histórico
+
         viewModelScope.launch {
             repository.callLogs.collect { logs ->
                 val lastLog = logs.firstOrNull()
@@ -111,22 +121,72 @@ class MainViewModel(
                 }
             }
         }
-
     }
 
-    /**
-     * Inicia o fluxo de compra da licença vitalícia PRO.
-     */
+    // --- BUSCA DO PREÇO NA GOOGLE PLAY ---
+    fun fetchPremiumPrice() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _paywallState.value = PaywallPriceState.Loading
+
+            // 🛡️ 1. ESPERA A CONEXÃO (A "REZA BRABA" EM CÓDIGO)
+            // Se não estiver pronto, espera 1 segundo e tenta de novo, até 3 vezes.
+            var retryCount = 0
+            while (!::billingClient.isInitialized || !billingClient.isReady) {
+                if (retryCount >= 3) {
+                    Log.e("VELVET_BILLING", "Desistindo: Google Play não conectou após 3 tentativas.")
+                    _paywallState.value = PaywallPriceState.Error
+                    return@launch
+                }
+                Log.w("VELVET_BILLING", "Aguardando conexão com a Play Store... (Tentativa ${retryCount + 1})")
+                delay(1500) // Espera 1.5s entre as tentativas
+                retryCount++
+            }
+
+            // 🛡️ 2. A QUERY (SELECT) NO CONSOLE
+            val queryProductDetailsParams = QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId("velvet_wall_pro_lifetime") // ID mestre
+                            .setProductType(BillingClient.ProductType.INAPP)
+                            .build()
+                    )
+                )
+                .build()
+
+            billingClient.queryProductDetailsAsync(queryProductDetailsParams) { billingResult, productDetailsList ->
+                val responseCode = billingResult.responseCode
+
+                if (responseCode == BillingClient.BillingResponseCode.OK) {
+                    val product = productDetailsList.firstOrNull()
+                    if (product != null) {
+                        val price = product.oneTimePurchaseOfferDetails?.formattedPrice ?: "R$ 29,90"
+
+                        // Lógica de promoção baseada no valor padrão de R$ 29,90
+                        val currentPriceMicros = product.oneTimePurchaseOfferDetails?.priceAmountMicros ?: 29900000L
+                        val isSale = currentPriceMicros < 29900000L
+
+                        _paywallState.value = PaywallPriceState.Active(
+                            currentPrice = price,
+                            originalPrice = if (isSale) "R$ 29,90" else null,
+                            discountTag = if (isSale) "OFERTA ESPECIAL" else null
+                        )
+                        Log.d("VELVET_BILLING", "✅ Preço carregado do Console: $price")
+                    } else {
+                        Log.e("VELVET_BILLING", "❌ Lista vazia. Verifique se o ID 'velvet_wall_pro_lifetime' está ATIVO no Console.")
+                        _paywallState.value = PaywallPriceState.Error
+                    }
+                } else {
+                    // LOG CRÍTICO: Se der erro, me diga qual é esse número!
+                    Log.e("VELVET_BILLING", "❌ Erro Google: Código $responseCode - ${billingResult.debugMessage}")
+                    _paywallState.value = PaywallPriceState.Error
+                }
+            }
+        }
+    }    // --- GESTÃO DE FATURAMENTO ---
     fun buyPremium(activity: Activity) {
         billingHelper.launchPurchaseFlow(activity)
     }
-
-    /**
-     * Restaura compras anteriores, essencial para aprovação na Play Store.
-     */
-
-
-    // No seu MainViewModel.kt
 
     fun restorePremium(context: Context) {
         viewModelScope.launch {
@@ -134,28 +194,26 @@ class MainViewModel(
                 _isRestoring.value = true
                 _blockEvent.emit("Sincronizando com a Google Play...")
 
-                // Criamos um timer de segurança externo
                 launch {
-                    delay(10000) // 10 segundos de limite absoluto
+                    delay(10000)
                     if (_isRestoring.value) {
                         _isRestoring.value = false
                         Log.d("VELVET", "Timeout: Google não respondeu, destravando UI.")
                     }
                 }
                 billingHelper.queryExistingPurchases { isPro ->
-                    // O callback precisa rodar no escopo da Main thread para atualizar a UI
                     viewModelScope.launch {
                         try {
                             userSettings.savePremiumStatus(isPro)
                             val msg = if (isPro) "Licença PRO ativa! 🦜" else "Nenhuma licença encontrada."
                             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                         } finally {
-                            _isRestoring.value = false // GARANTE que a rodinha pare no sucesso/erro
+                            _isRestoring.value = false
                         }
                     }
                 }
             } catch (e: Exception) {
-                _isRestoring.value = false // GARANTE que pare se o código crashar
+                _isRestoring.value = false
                 Log.e("VELVET", "Erro crítico no restauro: ${e.message}")
             }
         }
@@ -163,7 +221,6 @@ class MainViewModel(
 
     fun resetPremiumForDebug() {
         viewModelScope.launch {
-            // Volta o usuário para o estado "pobre"
             userSettings.savePremiumStatus(false)
             userSettings.setShowSuccess(false)
             Log.d("VELVET_DEBUG", "🧹 Status Premium resetado localmente.")
@@ -172,10 +229,22 @@ class MainViewModel(
 
     fun triggerSuccessForDebug() {
         viewModelScope.launch {
-            // Dispara a SuccessScreen e os confetes na hora!
+            userSettings.setShowSuccess(true)
+        }
+    }
+
+    fun triggerSuccess() {
+        viewModelScope.launch {
+            userSettings.setShowSuccess(true)
+        }
+    }
+
+    fun dismissSuccessAnimation() {
+        viewModelScope.launch {
             userSettings.setShowSuccess(false)
         }
     }
+
     // --- GESTÃO DE LISTAS E HISTÓRICO ---
     val blockedDDDs = userSettings.blockedDDDsFlow.stateIn(viewModelScope, SharingStarted.Companion.WhileSubscribed(5000), emptySet())
     val blacklist = repository.blacklist
@@ -200,7 +269,6 @@ class MainViewModel(
     val blockEvent = _blockEvent.asSharedFlow()
 
     // --- AÇÕES DE INTERFACE ---
-
     fun notifyBlock(number: String) {
         viewModelScope.launch {
             _blockEvent.emit("🛡️ Escudo Ativado: $number bloqueado!")
@@ -209,7 +277,6 @@ class MainViewModel(
         }
     }
 
-    // Toggles de Persistência
     fun toggleStealthMode(enabled: Boolean) = viewModelScope.launch { userSettings.setStealthMode(enabled) }
     fun toggleParanoidMode(enabled: Boolean) = viewModelScope.launch { userSettings.setParanoidMode(enabled) }
     fun toggleNightMode(enabled: Boolean) = viewModelScope.launch { userSettings.setNightMode(enabled) }
@@ -246,6 +313,17 @@ class MainViewModel(
         repository.addToBlacklist(item.number, "Confirmado via Histórico")
     }
 
+    fun moveBlackToWhite(item: BlockedNumber) {
+        viewModelScope.launch {
+            repository.removeFromBlacklist(item)
+            repository.addToWhitelist(item.number, "Movido dos Interceptados")
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { repository.clearLogs() }
+    }
+
     fun clearEverything() = viewModelScope.launch {
         repository.clearLogs()
         val nm = getApplication<Application>().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -253,7 +331,6 @@ class MainViewModel(
     }
 
     // --- SISTEMA E BACKGROUND ---
-
     fun checkRoleStatus(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
@@ -263,9 +340,6 @@ class MainViewModel(
         }
     }
 
-    /**
-     * Agenda a limpeza automática de logs, mantendo o app leve e performático.
-     */
     fun updateCleanupSettings(days: Int) = viewModelScope.launch {
         userSettings.setCleanupDays(days)
         val constraints = Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresDeviceIdle(true).build()
@@ -282,90 +356,12 @@ class MainViewModel(
         } catch (e: Exception) {}
     }
 
-    // --- O PULO DO GATO: MOVER DA BLACK PARA WHITE ---
-    fun moveBlackToWhite(item: BlockedNumber) {
-        viewModelScope.launch {
-            // 1. Remove da Negra
-            repository.removeFromBlacklist(item)
-            // 2. Adiciona na Branca
-            repository.addToWhitelist(item.number, "Movido dos Interceptados")
-        }
-    }
-    fun clearHistory() {
-        viewModelScope.launch { repository.clearLogs() }
-    }
-
-    private val _showSuccessScreen = MutableStateFlow(false)
-
-    fun triggerSuccess() {
-        viewModelScope.launch {
-            userSettings.setShowSuccess(true) // Ativa a tela de confetes
-        }
-    }
-
-    fun dismissSuccessAnimation() {
-        viewModelScope.launch {
-            userSettings.setShowSuccess(false) // Fecha a tela
-        }
-    }
-
-
-    // Puxa o fluxo pronto, sem erro de compilação
+    // --- TUTORIAL ---
     val showTutorial = userSettings.showTutorialFlow
 
-    // Função que a tela vai chamar quando clicar no botão "Concluir"
     fun completeTutorial() {
         viewModelScope.launch {
             userSettings.setTutorialCompleted()
-        }
-    }
-
-    /**
-     * Função que busca o preço real no Google Play e popula a máquina de estados.
-     * Esta versão é blindada e repleta de logs para debug.
-     */
-    fun fetchPremiumPrice() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _paywallState.value = PaywallPriceState.Active(currentPrice = "R$ 99,90 (TESTE)")
-            //_paywallState.value = PaywallPriceState.Loading
-
-            // 1. GARANTE CONEXÃO (Se não estiver conectado, tenta reconectar)
-            if (!::billingClient.isInitialized || !billingClient.isReady) {
-                _paywallState.value = PaywallPriceState.Error
-                return@launch
-            }
-
-            val queryProductDetailsParams = QueryProductDetailsParams.newBuilder()
-                .setProductList(
-                    listOf(
-                        QueryProductDetailsParams.Product.newBuilder()
-                            .setProductId("velvet_wall_pro_lifetime") // CONFERIR ESTE ID!
-                            .setProductType(BillingClient.ProductType.INAPP)
-                            .build()
-                    )
-                )
-                .build()
-
-            billingClient.queryProductDetailsAsync(queryProductDetailsParams) { billingResult, productDetailsList ->
-                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    val product = productDetailsList.firstOrNull()
-
-                    if (product != null) {
-                        val price = product.oneTimePurchaseOfferDetails?.formattedPrice ?: "R$ 29,90"
-                        Log.d("VELVET_BILLING", "Preço recuperado com sucesso: $price")
-
-                        _paywallState.value = PaywallPriceState.Active(currentPrice = price)
-                    } else {
-                        // O Google respondeu OK, mas a lista veio vazia (ID errado ou produto inativo)
-                        Log.e("VELVET_BILLING", "Produto não encontrado no Console. Verifique o ID!")
-                        _paywallState.value = PaywallPriceState.Error
-                    }
-                } else {
-                    // Erro de resposta do Google (Ex: 3 - Billing Unavailable, 4 - Item Unavailable)
-                    Log.e("VELVET_BILLING", "Erro na API do Google: ${billingResult.responseCode} - ${billingResult.debugMessage}")
-                    _paywallState.value = PaywallPriceState.Error
-                }
-            }
         }
     }
 }
@@ -384,4 +380,3 @@ class MainViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-
