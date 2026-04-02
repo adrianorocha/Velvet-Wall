@@ -1,7 +1,10 @@
 package blu.macaw.velvetwall.ui.screens
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -9,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.DeleteForever
@@ -64,15 +69,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.MainViewModel
 import blu.macaw.velvetwall.service.components.SettingsSwitchItem
+import blu.macaw.velvetwall.service.components.VelvetShieldCard
 import blu.macaw.velvetwall.ui.components.SettingsClickableItem
 import blu.macaw.velvetwall.ui.components.SettingsGroup
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
-    onNavigateToHelp: () -> Unit // Callback para a HelpScreen que você perguntou onde chamar
+    onNavigateToHelp: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -89,8 +96,8 @@ fun SettingsScreen(
 
     val paranoidMode by viewModel.paranoidModeEnabled.collectAsState()
     val localDDD by viewModel.userLocalDDD.collectAsState()
-
     val stealthMode by viewModel.stealthModeEnabled.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -104,8 +111,13 @@ fun SettingsScreen(
             style = MaterialTheme.typography.headlineMedium,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 24.dp, top = 8.dp)
+            modifier = Modifier.padding(bottom = 16.dp, top = 8.dp)
         )
+
+        // 🛡️ O NOVO CARD DE BLINDAGEM NO TOPO
+        VelvetShieldCard(context)
+
+        Spacer(Modifier.height(24.dp))
 
         // 1. INTELIGÊNCIA DE BLOQUEIO
         SettingsGroup("Inteligência de Bloqueio") {
@@ -125,7 +137,7 @@ fun SettingsScreen(
             )
         }
 
-        // 2. PRIVACIDADE E CONFORTO (Integração do Modo Noturno)
+        // 2. PRIVACIDADE E CONFORTO
         SettingsGroup("Privacidade & Conforto") {
             SettingsSwitchItem(
                 icon = Icons.Default.NotificationsActive,
@@ -165,94 +177,7 @@ fun SettingsScreen(
             )
         }
 
-        // 3. MANUTENÇÃO E LOGS
-        SettingsGroup("Manutenção de Logs") {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Limpeza Automática",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Apagar logs com mais de $selectedDays dias",
-                            color = Color.Gray,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Box {
-                        Surface(
-                            onClick = { expanded = true },
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "$selectedDays dias",
-                                    color = RoyalCyan,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.background(Color(0xFF1E293B))
-                        ) {
-                            listOf(7, 15, 30, 90).forEach { days ->
-                                DropdownMenuItem(
-                                    text = { Text("$days dias", color = Color.White) },
-                                    onClick = {
-                                        viewModel.updateCleanupSettings(days)
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. SUPORTE E SISTEMA
-        SettingsGroup("Suporte & Sistema") {
-            SettingsClickableItem(
-                icon = Icons.Default.HelpOutline,
-                title = "Guia de Configuração",
-                subtitle = "Aprenda a manter o escudo ativo",
-                onClick = onNavigateToHelp // Chamada para a sua HelpScreen
-            )
-            SettingsClickableItem(
-                icon = Icons.Default.SettingsApplications,
-                title = "Permissões do Android",
-                subtitle = "Gerenciar permissões de sistema",
-                onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
-                }
-            )
-        }
-
+        // 3. BLOQUEIO GEOGRÁFICO
         SettingsGroup("Bloqueio Geográfico") {
             var dddInput by remember { mutableStateOf("") }
             val blockedList by viewModel.blockedDDDs.collectAsState()
@@ -284,19 +209,12 @@ fun SettingsScreen(
                     }
                 }
 
-                // Chips para mostrar os DDDs já bloqueados
                 FlowRow(modifier = Modifier.padding(top = 12.dp)) {
                     blockedList.forEach { ddd ->
                         SuggestionChip(
                             onClick = { viewModel.removeBlockedDDD(ddd) },
                             label = { Text("DDD $ddd", color = RoyalCyan) },
-                            icon = {
-                                Icon(
-                                    Icons.Default.Close,
-                                    null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            },
+                            icon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp)) },
                             modifier = Modifier.padding(end = 8.dp)
                         )
                     }
@@ -304,11 +222,12 @@ fun SettingsScreen(
             }
         }
 
+        // 4. MODO PARANÓICO
         SettingsGroup("Modo Paranóico") {
             SettingsSwitchItem(
                 icon = Icons.Default.Security,
                 title = "Ativar Modo Paranóico",
-                subtitle = "Bloquear números de fora do seu DDD (exceto contactos)",
+                subtitle = "Bloquear números de fora do seu DDD (exceto contatos)", // 🎯 Corrigido para PT-BR
                 checked = paranoidMode,
                 onCheckedChange = { viewModel.toggleParanoidMode(it) }
             )
@@ -335,9 +254,85 @@ fun SettingsScreen(
                 }
             }
         }
-        // 5. AÇÕES CRÍTICAS
+
+        // 5. MANUTENÇÃO DE LOGS
+        SettingsGroup("Manutenção de Logs") {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Limpeza Automática", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Apagar logs com mais de $selectedDays dias", color = Color.Gray, fontSize = 12.sp)
+                    }
+
+                    Box {
+                        Surface(
+                            onClick = { expanded = true },
+                            color = Color(0xFF0F172A),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("$selectedDays dias", color = RoyalCyan, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.ArrowDropDown, null, tint = RoyalCyan)
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color(0xFF1E293B))
+                        ) {
+                            listOf(7, 15, 30, 90).forEach { days ->
+                                DropdownMenuItem(
+                                    text = { Text("$days dias", color = Color.White) },
+                                    onClick = {
+                                        viewModel.updateCleanupSettings(days)
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. SUPORTE E SISTEMA
+        SettingsGroup("Suporte & Sistema") {
+            SettingsClickableItem(
+                icon = Icons.Default.HelpOutline,
+                title = "Guia de Configuração",
+                subtitle = "Aprenda a manter o escudo ativo",
+                onClick = onNavigateToHelp
+            )
+            SettingsClickableItem(
+                icon = Icons.Default.SettingsApplications,
+                title = "Permissões do Android",
+                subtitle = "Gerenciar permissões de sistema",
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }
+            )
+        }
+
+        // 7. AÇÕES CRÍTICAS
         SettingsGroup("Ações Críticas") {
-            // Botão de Limpeza Total Premium
             Button(
                 onClick = {
                     viewModel.clearEverything()
@@ -366,7 +361,6 @@ fun SettingsScreen(
             )
         }
 
-        // Rodapé Blu Macaw
         FooterSection()
     }
 }
@@ -379,15 +373,41 @@ private fun FooterSection() {
             .padding(top = 32.dp, bottom = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            Icons.Default.Shield,
-            null,
-            tint = RoyalCyan.copy(alpha = 0.3f),
-            modifier = Modifier.size(40.dp)
-        )
+        Icon(Icons.Default.Shield, null, tint = RoyalCyan.copy(alpha = 0.3f), modifier = Modifier.size(40.dp))
         Spacer(Modifier.height(8.dp))
         Text("Velvet Wall", color = Color.White, fontWeight = FontWeight.Bold)
         Text("Versão 1.1.0", color = Color.Gray, fontSize = 12.sp)
         Text("Blu Macaw Lab's", color = RoyalCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+// ---------------------------------------------------------------------------
+// 🛡️ COMPONENTES DE BLINDAGEM DE SISTEMA E FUNÇÕES UTILITÁRIAS
+// ---------------------------------------------------------------------------
+
+fun disableAutoRevokePermissions(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        try {
+            val intent = Intent(Intent.ACTION_AUTO_REVOKE_PERMISSIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(fallbackIntent)
+        }
+    }
+}
+
+@SuppressLint("BatteryLife")
+fun requestUnrestrictedBattery(context: Context) {
+    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        data = Uri.parse("package:${context.packageName}")
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    context.startActivity(intent)
 }

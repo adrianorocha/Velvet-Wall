@@ -1,16 +1,19 @@
 package blu.macaw.velvetwall.service
 
+import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo // <--- NOVO IMPORT OBRIGATÓRIO
+import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.os.Build
 import android.os.IBinder
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import blu.macaw.velvetwall.MainActivity
 import blu.macaw.velvetwall.R
 import blu.macaw.velvetwall.data.UserSettings
@@ -31,16 +34,32 @@ class AppStatusService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotificationChannel()
 
+        // 🛡️ O GOLPE DE MESTRE: Subir o Foreground IMEDIATAMENTE (Android 14)
+        // Usamos um estado inicial (ex: true) só para o Android não matar o app
+        val initialNotification = buildCustomNotification(isBlockingUnknown = true)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1001, initialNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1001, initialNotification)
+        }
+
+        // 📊 Observa o banco e ATUALIZA a notificação em tempo real
         scope.launch {
             userSettings.blockUnknownFlow.collectLatest { isBlockingUnknown ->
-                updateCustomNotification(isBlockingUnknown)
+                // Pega a notificação com os dados reais e atualiza silenciosamente
+                val updatedNotification = buildCustomNotification(isBlockingUnknown)
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(1001, updatedNotification) // Atualiza sem piscar a tela
             }
         }
         return START_STICKY
     }
-
-    private fun updateCustomNotification(isBlockingUnknown: Boolean) {
-        // 1. Prepara os Intents (Ações dos cliques) - MANTIDO INTACTO
+    /**
+     * 🏗️ Função isolada apenas para construir a notificação profissional.
+     */
+    @SuppressLint("RemoteViewLayout")
+    private fun buildCustomNotification(isBlockingUnknown: Boolean): Notification {
         val openAppIntent = Intent(this, MainActivity::class.java)
         val pendingOpenApp = PendingIntent.getActivity(this, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE)
 
@@ -51,71 +70,59 @@ class AppStatusService : Service() {
         val pendingToggle = PendingIntent.getBroadcast(this, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val settingsIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("NAVIGATE_TO", "settings")
         }
         val pendingSettings = PendingIntent.getActivity(this, 2, settingsIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val listIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("NAVIGATE_TO", "blacklist")
         }
         val pendingList = PendingIntent.getActivity(this, 3, listIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // 2. Configura a RemoteView (O Layout Personalizado) - MANTIDO INTACTO
+        // --- DESIGN DE ELITE (RemoteViews) ---
         val customLayout = RemoteViews(packageName, R.layout.notification_control_panel)
 
-        val statusText = if (isBlockingUnknown) "Proteção Máxima Ativa" else "Modo Monitoramento"
-        val toggleText = if (isBlockingUnknown) "Desativar" else "Ativar"
+        // Cores e Ícones Dinâmicos baseados no Padrão de Cores
+        val statusText = if (isBlockingUnknown) "ESCUDO ATIVO" else "MODO MONITOR"
+        val statusColor = if (isBlockingUnknown) Color.parseColor("#00E5FF") else Color.parseColor("#94A3B8")
         val toggleIcon = if (isBlockingUnknown) R.drawable.ic_power_off else R.drawable.ic_shield_large
 
         customLayout.setTextViewText(R.id.notif_status_text, statusText)
-        customLayout.setTextViewText(R.id.txt_toggle, toggleText)
-        customLayout.setImageViewResource(R.id.icon_toggle, toggleIcon)
-
+        customLayout.setTextColor(R.id.notif_status_text, statusColor)
+// 🎯 Agora atualizamos o próprio botão diretamente!
+        customLayout.setImageViewResource(R.id.btn_toggle, toggleIcon)
+        customLayout.setInt(R.id.btn_toggle, "setColorFilter", statusColor)        // Atribuindo os Cliques
         customLayout.setOnClickPendingIntent(R.id.btn_toggle, pendingToggle)
         customLayout.setOnClickPendingIntent(R.id.btn_settings, pendingSettings)
         customLayout.setOnClickPendingIntent(R.id.btn_list, pendingList)
 
-        // 3. Constrói a Notificação - MANTIDO INTACTO
-        val royalCyanColor = ContextCompat.getColor(this, R.color.royal_cyan)
-
-        val notification = NotificationCompat.Builder(this, "STATUS_CHANNEL_ID")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setColor(royalCyanColor)
-            .setColorized(true)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        // 🛡️ CONSTRUÇÃO DA NOTIFICAÇÃO PROFISSIONAL
+        return NotificationCompat.Builder(this, "STATUS_CHANNEL_ID")
+            .setSmallIcon(R.drawable.ic_shield_small_notif) // Certifique-se que este ícone existe e é branco
             .setCustomContentView(customLayout)
             .setCustomBigContentView(customLayout)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setContentIntent(pendingOpenApp)
+            // ❌ REMOVIDO: DecoratedCustomViewStyle (causava o corte)
+            // ❌ REMOVIDO: setColorized(true) (causava o "azulão")
             .setOngoing(true)
+            .setSilent(true) // Não intrusivo
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pendingOpenApp)
             .build()
-
-        // 4. A MARRETADA DO ANDROID 14 (O QUE MUDOU AQUI)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                1001,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE // Passaporte para rodar no background
-            )
-        } else {
-            // Comportamento padrão para Android 13 ou inferior
-            startForeground(1001, notification)
-        }
     }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 "STATUS_CHANNEL_ID",
                 "Status do Aplicativo",
                 NotificationManager.IMPORTANCE_LOW
-            )
-            channel.enableLights(false)
-            channel.enableVibration(false)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            ).apply {
+                description = "Exibe o status de proteção em tempo real"
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
         }
     }
 

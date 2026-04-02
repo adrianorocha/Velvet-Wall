@@ -10,6 +10,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,7 +67,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
-import androidx.compose.foundation.layout.navigationBarsPadding
 
 // 1. A MÁQUINA DE ESTADOS DO PREÇO (data object)
 sealed class PaywallPriceState {
@@ -88,9 +89,10 @@ fun PaywallScreen(
     onLogsClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
-    val surfaceDark = Color(0xFF0F172A) // Um pouco mais profundo para dar contraste
+    val surfaceDark = Color(0xFF0F172A)
     val textMuted = Color(0xFF94A3B8)
     val glowCyan = RoyalCyan.copy(alpha = 0.6f)
+    val glowGold = Color(0xFFFFD700)
 
     // Gradiente de Fundo com uma "Aura" central
     val bgBrush = Brush.radialGradient(
@@ -99,9 +101,27 @@ fun PaywallScreen(
         radius = 1200f
     )
 
+    // Pincéis de Animação
+    val priceShimmerBrush = rememberAnimatedShimmerBrush(
+        shimmerColor = RoyalCyan.copy(alpha = 0.3f),
+        backgroundColor = Color.White,
+        durationMillis = 2000
+    )
     val shimmerBrush = rememberAnimatedShimmerBrush(
         shimmerColor = Color.White.copy(alpha = 0.5f),
         backgroundColor = Color.Transparent
+    )
+
+    // 🎯 NOVO: Pincéis Dourados para a Tag de Promoção
+    val tagBorderShimmerBrush = rememberAnimatedShimmerBrush(
+        shimmerColor = Color.White, // A luz branca que vai correr na borda
+        backgroundColor = glowGold.copy(alpha = 0.3f), // O fundo da borda
+        durationMillis = 2000
+    )
+    val tagTextShimmerBrush = rememberAnimatedShimmerBrush(
+        shimmerColor = Color.White,
+        backgroundColor = glowGold,
+        durationMillis = 2000
     )
 
     val heartbeatModifier = rememberAnimatedHeartbeatModifier()
@@ -233,9 +253,8 @@ fun PaywallScreen(
                         }
 
                         is PaywallPriceState.Active -> {
-                            // Container do Preço com Borda Dourada se for Promoção
                             val isPromo = state.discountTag != null
-                            val borderColor = if (isPromo) Color(0xFFFFD700) else RoyalCyan.copy(alpha = 0.3f)
+                            val borderColor = if (isPromo) glowGold else RoyalCyan.copy(alpha = 0.3f)
 
                             Surface(
                                 color = Color.Transparent,
@@ -249,16 +268,37 @@ fun PaywallScreen(
                                     modifier = Modifier.padding(vertical = 16.dp)
                                 ) {
                                     if (isPromo) {
-                                        Text(
-                                            text = state.discountTag ?: "",
-                                            color = Color(0xFFFFD700),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            letterSpacing = 2.sp,
+                                        // 🎯 AQUI ESTÁ A MÁGICA: A Caixa da Tag com Borda Reluzente
+                                        Box(
                                             modifier = Modifier
-                                                .padding(bottom = 4.dp)
-                                                .then(shakeModifier)
-                                        )
+                                                .padding(bottom = 8.dp)
+                                                .then(shakeModifier) // Mantém o balanço
+                                                .border(
+                                                    BorderStroke(1.5.dp, tagBorderShimmerBrush), // Borda com luz!
+                                                    RoundedCornerShape(50) // Formato de pílula (Capsule)
+                                                )
+                                                .background(
+                                                    color = glowGold.copy(alpha = 0.05f),
+                                                    shape = RoundedCornerShape(50)
+                                                )
+                                                .padding(horizontal = 14.dp, vertical = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = state.discountTag ?: "OFERTA DE LANÇAMENTO",
+                                                style = TextStyle(
+                                                    brush = tagTextShimmerBrush, // O texto também reluz
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 2.sp,
+                                                    shadow = Shadow(
+                                                        color = glowGold.copy(alpha = 0.8f),
+                                                        offset = Offset(0f, 0f),
+                                                        blurRadius = 15f
+                                                    )
+                                                )
+                                            )
+                                        }
                                     }
 
                                     Row(
@@ -268,7 +308,7 @@ fun PaywallScreen(
                                         if (state.originalPrice != null) {
                                             Text(
                                                 text = state.originalPrice,
-                                                color = Color(0xFFEF4444).copy(alpha = 0.8f), // Vermelho suave para "desconto"
+                                                color = Color(0xFFEF4444).copy(alpha = 0.8f),
                                                 fontSize = 18.sp,
                                                 style = TextStyle(textDecoration = TextDecoration.LineThrough),
                                                 modifier = Modifier.padding(bottom = 6.dp, end = 12.dp)
@@ -278,11 +318,10 @@ fun PaywallScreen(
                                         Text(
                                             text = state.currentPrice.replace(".", ","),
                                             style = TextStyle(
-                                                fontSize = 44.sp,
+                                                fontSize = 46.sp,
                                                 fontWeight = FontWeight.Black,
-                                                color = Color.White,
-                                                // Efeito Glow no Preço
-                                                shadow = Shadow(color = RoyalCyan, blurRadius = 15f)
+                                                brush = priceShimmerBrush,
+                                                shadow = Shadow(color = RoyalCyan.copy(alpha = 0.3f), blurRadius = 25f)
                                             ),
                                             modifier = heartbeatModifier
                                         )
@@ -304,7 +343,7 @@ fun PaywallScreen(
                 enabled = isBuyEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp), // Um pouco mais alto para impacto
+                    .height(64.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = RoyalCyan,
                     disabledContainerColor = surfaceDark
@@ -317,7 +356,7 @@ fun PaywallScreen(
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Text(
-                        text = "DESBLOQUEAR ACESSO VITALÍCIO", // Texto mais forte
+                        text = "DESBLOQUEAR ACESSO VITALÍCIO",
                         color = if (isBuyEnabled) Color(0xFF020617) else textMuted,
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
@@ -334,7 +373,7 @@ fun PaywallScreen(
                 }
             }
 
-            // Gatilho de Confiança (Social Proof / Security)
+            // Gatilho de Confiança
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -381,7 +420,7 @@ private fun FeatureRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color.White.copy(alpha = 0.03f)) // Destaca sutilmente a linha clicável
+            .background(Color.White.copy(alpha = 0.03f))
             .padding(vertical = 12.dp, horizontal = 12.dp)
     } else {
         Modifier
@@ -393,7 +432,6 @@ private fun FeatureRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
     ) {
-        // Ícone dentro de um círculo translúcido
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -471,40 +509,27 @@ fun rememberAnimatedHeartbeatModifier(
     }
 }
 
-/**
- * 🛠️ NOVO: ANIMAÇÃO "CHACOALHAR" (Shake): Cria um movimento horizontal rápido e intermitente.
- */
 @Composable
 fun rememberAnimatedShakeModifier(
-    durationMillis: Int = 2500, // Ciclo mais longo para não cansar a vista
-    shakeIntensity: Dp = 4.dp // Intensidade do balanço horizontal
+    durationMillis: Int = 2500,
+    shakeIntensity: Dp = 4.dp
 ): Modifier {
     val transition = rememberInfiniteTransition(label = "ShakeTransition")
     val density = LocalDensity.current
-
-    // Convertemos a intensidade para pixels (toPx) para a graphicsLayer
     val shakeIntensityPx = with(density) { shakeIntensity.toPx() }
 
-    // Animação de Translação Horizontal (Shake)
     val translationXAnim by transition.animateFloat(
         initialValue = 0f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
                 this.durationMillis = durationMillis
-
-                // ⏳ Período de Silêncio (2 segundos parado)
-                0f at 0
-                0f at 1900
-
-                // ⚡ O CHACOALHAR RÁPIDO (Lub-Dub horizontal)
-                -shakeIntensityPx at 1950 // Esquerda rápida
-                shakeIntensityPx at 2050  // Direita rápida
-                -(shakeIntensityPx / 1.5f) at 2150 // Esquerda mais fraca (amortecimento)
-                (shakeIntensityPx / 2f) at 2250  // Direita mais fraca
-                0f at 2350 // Volta ao centro
-
-                // Volta ao Silêncio
+                0f at 0; 0f at 1900
+                -shakeIntensityPx at 1950
+                shakeIntensityPx at 2050
+                -(shakeIntensityPx / 1.5f) at 2150
+                (shakeIntensityPx / 2f) at 2250
+                0f at 2350
                 0f at durationMillis
             }
         ),

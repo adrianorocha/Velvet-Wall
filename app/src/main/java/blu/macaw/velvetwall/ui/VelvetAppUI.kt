@@ -66,6 +66,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -79,7 +80,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -156,9 +159,9 @@ fun VelvetAppNavigation(
 
         // ⏳ MÁQUINA DO TEMPO: Verifica se o trial expirou
         val isTrialExpired = if (DEBUG_SIMULATE_TRIAL_EXPIRED) {
-            true // Simula imediatamente que os 14 dias já passaram!
+            true // Simula imediatamente que os 7 dias já passaram!
         } else {
-            val fourteenDaysInMillis = 14 * 24 * 60 * 60 * 1000L
+            val fourteenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
             val currentTime = System.currentTimeMillis()
             trialStart > 0 && (currentTime - trialStart) > fourteenDaysInMillis
         }
@@ -318,6 +321,10 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
     val blockMessage by viewModel.blockEvent.collectAsState(initial = "")
 
+    // 🛡️ O PULO DO GATO: Puxando o total do banco de dados em tempo real
+    val history by viewModel.history.collectAsState(initial = emptyList())
+    val blockedCount = history.size
+
     var showDebugMenu by remember { mutableStateOf(false) }
     var debugClickCount by remember { mutableStateOf(0) }
 
@@ -388,6 +395,7 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Escudo Central
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.clickable(
@@ -403,14 +411,14 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
                 )
             ) {
                 Box(
-                    modifier = Modifier.size(280.dp),
+                    modifier = Modifier.size(260.dp), // Diminuí um pouco para dar mais espaço ao card
                     contentAlignment = Alignment.Center
                 ){
                     VelvetPulsingShield(isServiceActive = isEnabled)
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
 
             Text(
                 if (isEnabled) "VELVET WALL ATIVO" else "PROTEÇÃO DESATIVADA",
@@ -426,24 +434,107 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 12.dp, bottom = 48.dp)
+                modifier = Modifier.padding(top = 12.dp)
             )
 
+            // 🛡️ NOVO: CARD DE ESTATÍSTICA (Contador de Ameaças)
+// 🛡️ NOVO: PAINEL DE TELEMETRIA (Estatística + Eficiência)
+            if (isEnabled) {
+                Surface(
+                    color = Color(0xFF1E293B).copy(alpha = 0.5f), // Fundo translúcido
+                    shape = RoundedCornerShape(20.dp), // Bordas mais arredondadas
+                    border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp, bottom = 32.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly, // Espaça as colunas igualmente
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 📊 COLUNA 1: Bloqueios Reais
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "$blockedCount", // A variável do banco de dados
+                                color = Color.White,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = RoyalCyan,
+                                        blurRadius = 10f
+                                    )
+                                )
+                            )
+                            Text(
+                                text = "Neutralizadas",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+
+                        // ⚡ DIVISOR DE VIDRO (Linha central)
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(48.dp)
+                                .background(Color.White.copy(alpha = 0.1f))
+                        )
+
+                        // 📈 COLUNA 2: Taxa de Eficiência
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF10B981), // Verde Esmeralda (Sucesso)
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "100%",
+                                    color = Color(0xFF10B981), // Verde Esmeralda (Sucesso)
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Black,
+                                    style = TextStyle(
+                                        shadow = Shadow(
+                                            color = Color(0xFF10B981).copy(alpha = 0.6f),
+                                            blurRadius = 10f
+                                        )
+                                    )
+                                )
+                            }
+                            Text(
+                                text = "Eficiência do Filtro",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Se estiver desativado, apenas mantemos o espaço
+                Spacer(Modifier.height(48.dp))
+            }
             // BOTÃO DE AÇÃO PREMIUM
             Button(
                 onClick = {
                     val roleManager = context.getSystemService(RoleManager::class.java)
 
                     when {
-                        // 1. O app ainda não é o gerenciador de chamadas padrão
                         roleManager != null && !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) -> {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
                                 roleLauncher.launch(intent)
                             }
                         }
-
-                        // 2. É padrão, mas faltam as permissões de execução (Contatos/Notif)
                         !hasAllPermissions() -> {
                             val perms = mutableListOf(
                                 permission.READ_CONTACTS,
@@ -451,11 +542,8 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
                                 permission.ANSWER_PHONE_CALLS
                             )
                             if (Build.VERSION.SDK_INT >= 33) perms.add(permission.POST_NOTIFICATIONS)
-
                             permissionsLauncher.launch(perms.toTypedArray())
                         }
-
-                        // 3. Tudo configurado: Oferece gerenciar no sistema
                         else -> {
                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                                 data = Uri.fromParts("package", context.packageName, null)
@@ -482,7 +570,6 @@ fun HomeScreen(viewModel: MainViewModel, onDebugPaywall: () -> Unit) {
         }
     }
 }
-
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 fun HistoryScreen(viewModel: MainViewModel) {

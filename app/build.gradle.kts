@@ -21,7 +21,7 @@ android {
         applicationId = "blu.macaw.velvetwall"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
+        versionCode = 21
         versionName = "1.0.0-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

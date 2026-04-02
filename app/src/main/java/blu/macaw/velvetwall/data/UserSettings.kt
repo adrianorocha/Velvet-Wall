@@ -121,7 +121,7 @@ class UserSettings(private val context: Context) {
         val trialStart = trialStartFlow.first()
         if (trialStart == 0L) return true // Trial ainda não começou, liberado por enquanto
 
-        val sevenDaysInMillis = 14 * 24 * 60 * 60 * 1000L
+        val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
         val currentTime = System.currentTimeMillis()
 
         // Retorna TRUE se ainda estiver dentro dos 14 dias de degustação
@@ -155,4 +155,6 @@ class UserSettings(private val context: Context) {
     suspend fun disableTutorial() {
         context.dataStore.edit { it[SHOW_TUTORIAL_KEY] = false }
     }
+
+
 }

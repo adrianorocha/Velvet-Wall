@@ -30,7 +30,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.util.Calendar
 
 private const val GROUP_KEY_BLOCKS = "blu.macaw.velvetwall.BLOCK_GROUP"
@@ -52,13 +51,18 @@ class CallBlockerService : CallScreeningService() {
         if (callDetails.callDirection != Call.Details.DIRECTION_INCOMING) return
 
         val rawNumber = callDetails.handle?.schemeSpecificPart ?: ""
-        val normalizedNumber = rawNumber.replace(Regex("[^0-9]"), "")
+
+        // 1. Identificação de Número Oculto
+        val isHidden = rawNumber.isEmpty() || rawNumber.isBlank() || rawNumber.equals("private", ignoreCase = true)
+
+        // 2. 🛡️ O FILTRO DA BLU MACAW: Normalização Perfeita
+        val normalizedNumber = if (isHidden) "" else normalizePhoneNumber(rawNumber)
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 1. Carregar preferências e Status de Faturamento
+                // Carregar preferências do DataStore
                 val isPremium = userSettings.isPremiumFlow.first()
-                val isFeatureAllowed = userSettings.isFeatureAllowed() // Verifica Trial ou Premium
+                val isFeatureAllowed = userSettings.isFeatureAllowed()
 
                 val isParanoidActive = userSettings.paranoidModeFlow.first()
                 val myDDD = userSettings.userLocalDDDFlow.first()
@@ -68,14 +72,13 @@ class CallBlockerService : CallScreeningService() {
 
                 var shouldBlock = false
                 var blockReason = ""
-                var isTrialFeature = false // Marca se o bloqueio depende da degustação
+                var isTrialFeature = false
 
-                // 2. Identificação básica
-                val isHidden = rawNumber.isEmpty() || rawNumber.isBlank() || rawNumber.equals("private", ignoreCase = true)
+                // Checagens
                 val incomingDDD = extractDDD(normalizedNumber)
                 val isContact = if (!isHidden) isContact(applicationContext, rawNumber) else false
 
-                // 3. Hierarquia de Bloqueio com Lógica de Vendas
+                // 3. Hierarquia de Bloqueio
                 when {
                     isEmergencyOrUtility(applicationContext, rawNumber, normalizedNumber) ||
                             repository.isWhitelisted(normalizedNumber) -> {
@@ -83,68 +86,84 @@ class CallBlockerService : CallScreeningService() {
                         return@launch
                     }
 
-                    // Lista Negra (Recurso Free)
                     repository.shouldBlockCall(normalizedNumber) -> {
                         shouldBlock = true; blockReason = "Interceptados"
                     }
 
-                    // DDD Bloqueado (Recurso de Degustação)
                     incomingDDD != null && blockedDDDs.contains(incomingDDD) -> {
                         shouldBlock = true; blockReason = "DDD $incomingDDD Bloqueado"; isTrialFeature = true
                     }
 
-                    // Modo Paranóico (Recurso de Degustação)
                     isParanoidActive && myDDD.isNotEmpty() && !isContact && incomingDDD != myDDD -> {
                         shouldBlock = true; blockReason = "Modo Paranóico"; isTrialFeature = true
                     }
 
-                    // Desconhecidos (Recurso de Degustação)
                     blockUnknown && !isHidden && !isContact -> {
                         shouldBlock = true; blockReason = "Fora da Agenda"; isTrialFeature = true
                     }
 
-                    // Número Privado (Recurso Free)
                     isHidden && blockPrivate -> {
                         shouldBlock = true; blockReason = "Número Privado"
                     }
                 }
 
-                // 4. Execução Final com Filtro de Monetização
+                // 4. Execução Final
                 if (shouldBlock) {
                     if (isTrialFeature && !isFeatureAllowed) {
-                        // Trial expirou: Avisa o usuário mas NÃO bloqueia a chamada (Gatilho de Perda)
                         showUpsellNotification(rawNumber.ifEmpty { "Privado" }, blockReason)
                         respondToCall(callDetails, CallResponse.Builder().build())
                     } else {
-                        // Se for a primeira vez usando Trial, iniciamos o contador agora
                         if (isTrialFeature && !isPremium) userSettings.startTrialIfNecessary()
 
-                        blockAndNotify(callDetails, rawNumber.ifEmpty { "Privado" }, blockReason)
+                        // Agora usamos a função com 'suspend' (sem runBlocking)
+                        blockAndNotify(callDetails, rawNumber.ifEmpty { "Privado" }, blockReason, isPremium)
                         repository.logBlockedCall(rawNumber.ifEmpty { "Privado" }, blockReason)
                     }
                 } else {
                     respondToCall(callDetails, CallResponse.Builder().build())
                 }
             } catch (e: Exception) {
+                Log.e("VELVET_SRV", "Erro no processamento da chamada: ${e.message}")
                 respondToCall(callDetails, CallResponse.Builder().build())
             }
         }
     }
 
-    private fun blockAndNotify(callDetails: Call.Details, number: String, reason: String) {
-        val isPremium = runBlocking { userSettings.isPremiumFlow.first() }
-        val isStealthActive = runBlocking { userSettings.stealthModeFlow.first() }
-        val isNotifEnabled = runBlocking { userSettings.notificationsFlow.first() }
+    /**
+     * 🧹 Limpa a sujeira da operadora (Espaços, +, DDI 55, zero do DDD)
+     */
+    private fun normalizePhoneNumber(rawNumber: String): String {
+        var clean = rawNumber.replace(Regex("[^0-9]"), "")
+        if (clean.isEmpty()) return rawNumber
 
-        // O Modo Stealth é exclusivo para quem é PREMIUM
+        if (clean.startsWith("55") && clean.length >= 12) {
+            clean = clean.substring(2)
+        }
+        if (clean.startsWith("0") && clean.length >= 11) {
+            clean = clean.substring(1)
+        }
+        return clean
+    }
+
+    /**
+     * Extrai o DDD agora que o número está perfeitamente limpo
+     */
+    private fun extractDDD(normalizedNumber: String): String? {
+        if (normalizedNumber.isEmpty()) return null
+        return if (normalizedNumber.length >= 10) normalizedNumber.substring(0, 2) else null
+    }
+
+    // ⚡ Transformado em 'suspend' para ler do banco sem travar a thread
+    private suspend fun blockAndNotify(callDetails: Call.Details, number: String, reason: String, isPremium: Boolean) {
+        val isStealthActive = userSettings.stealthModeFlow.first()
+        val isNotifEnabled = userSettings.notificationsFlow.first()
+
         val actuallyStealth = isStealthActive && isPremium
 
         if (actuallyStealth) {
             triggerHapticFeedback()
         }
 
-        // Se o usuário ativou Stealth mas não é Premium, ele recebe a notificação normal
-        // para ser lembrado de que precisa do PRO para a invisibilidade total.
         if (!actuallyStealth && isNotifEnabled) {
             showNotification(number, reason)
         }
@@ -159,71 +178,10 @@ class CallBlockerService : CallScreeningService() {
         respondToCall(callDetails, response)
     }
 
-    private fun showUpsellNotification(number: String, reason: String) {
-        val isDebug = (0 != (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE))
-        val isTester = BuildConfig.VERSION_NAME.contains("alpha", ignoreCase = true) ||
-                BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true)
-        if (isDebug || isTester) {
-            Log.d("VELVET_WALL", "Upsell ignorado: Usuário é Tester/Alpha no hardware A56.")
-            return
-        }
-        // Notificação especial para converter o usuário
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "BLOCK_EVENTS_CHANNEL"
-
-        val builder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_shield_large)
-            .setContentTitle("Spam Detectado: $number")
-            .setContentText("O Trial do $reason expirou. Ative o PRO para barrar!")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(Color.parseColor("#FACC15")) // Amarelo para atenção
-            .setAutoCancel(true)
-            .build()
-
-        notificationManager.notify(System.currentTimeMillis().toInt(), builder)
-    }
-
-    // --- MANTIDAS AS FUNÇÕES AUXILIARES SEM ALTERAÇÃO ---
-    @SuppressLint("ObsoleteSdkInt")
-    private fun triggerHapticFeedback() {
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (vibrator.hasVibrator()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(70, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                vibrator.vibrate(70)
-            }
-        }
-    }
-
-    private fun isEmergencyOrUtility(context: Context, rawNumber: String, normNumber: String): Boolean {
-        if (isEmergencyNumber(rawNumber)) return true
-        val safeList = setOf("100", "180", "181", "190", "191", "192", "193", "194", "197", "198", "199", "153", "112", "911")
-        return safeList.any { safeNum -> normNumber == safeNum || normNumber.endsWith(safeNum) }
-    }
-
-    private fun hasContactPermission(context: Context): Boolean {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun isContact(context: Context, number: String): Boolean {
-        if (number.isBlank()) return false
-        try {
-            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
-            val projection = arrayOf(ContactsContract.PhoneLookup._ID)
-            context.contentResolver.query(uri, projection, null, null, null)?.use { if (it.moveToFirst()) return true }
-        } catch (e: Exception) { Log.e("VELVET_SRV", "Erro contato: $e") }
-        return false
-    }
-
-    private fun extractDDD(number: String): String? {
-        val cleanNumber = number.replace("+55", "").filter { it.isDigit() }
-        return if (cleanNumber.length >= 2) cleanNumber.substring(0, 2) else null
-    }
-
+    // ⚡ Transformado em 'suspend' para ler do banco sem travar a thread
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     @SuppressLint("MissingPermission")
-    private fun showNotification(number: String, reason: String) {
+    private suspend fun showNotification(number: String, reason: String) {
         val channelId = "BLOCK_EVENTS_CHANNEL"
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val currentTimeMillis = System.currentTimeMillis()
@@ -234,11 +192,9 @@ class CallBlockerService : CallScreeningService() {
         val isSpamming = (currentTimeMillis - lastTime) < 60000
         lastBlockTimes[number] = currentTimeMillis
 
-        // Silenciamento Noturno também é influenciado pela permissão de Trial
-        val isNightModeSettingEnabled = runBlocking { userSettings.nightModeFlow.first() }
-        val isTrialAllowed = runBlocking { userSettings.isFeatureAllowed() }
+        val isNightModeSettingEnabled = userSettings.nightModeFlow.first()
+        val isTrialAllowed = userSettings.isFeatureAllowed()
 
-        // Se o Trial expirou, o app ignora o modo noturno para "incomodar" e incentivar a compra
         val applyNightSilence = isNightModeSettingEnabled && (hour >= 22 || hour < 6) && isTrialAllowed
 
         val isHighRisk = reason.contains("Blacklist", ignoreCase = true) || reason.contains("Spam", ignoreCase = true)
@@ -278,5 +234,51 @@ class CallBlockerService : CallScreeningService() {
 
         notificationManager.notify(currentTimeMillis.toInt(), individualBuilder)
         notificationManager.notify(SUMMARY_ID, summaryBuilder)
+    }
+
+    private fun showUpsellNotification(number: String, reason: String) {
+        val isDebug = (0 != (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE))
+        val isTester = BuildConfig.VERSION_NAME.contains("alpha", ignoreCase = true) || BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true)
+        if (isDebug || isTester) return
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val builder = NotificationCompat.Builder(this, "BLOCK_EVENTS_CHANNEL")
+            .setSmallIcon(R.drawable.ic_shield_large)
+            .setContentTitle("Spam Detectado: $number")
+            .setContentText("O Trial do $reason expirou. Ative o PRO para barrar!")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setColor(Color.parseColor("#FACC15"))
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), builder)
+    }
+
+    @SuppressLint("ObsoleteSdkInt")
+    private fun triggerHapticFeedback() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(70, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator.vibrate(70)
+            }
+        }
+    }
+
+    private fun isEmergencyOrUtility(context: Context, rawNumber: String, normNumber: String): Boolean {
+        if (isEmergencyNumber(rawNumber)) return true
+        val safeList = setOf("100", "180", "181", "190", "191", "192", "193", "194", "197", "198", "199", "153", "112", "911")
+        return safeList.any { safeNum -> normNumber == safeNum || normNumber.endsWith(safeNum) }
+    }
+
+    private fun isContact(context: Context, number: String): Boolean {
+        if (number.isBlank()) return false
+        try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            val projection = arrayOf(ContactsContract.PhoneLookup._ID)
+            context.contentResolver.query(uri, projection, null, null, null)?.use { if (it.moveToFirst()) return true }
+        } catch (e: Exception) { Log.e("VELVET_SRV", "Erro contato: $e") }
+        return false
     }
 }
