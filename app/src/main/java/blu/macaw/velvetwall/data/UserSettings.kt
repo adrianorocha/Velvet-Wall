@@ -18,6 +18,7 @@ class UserSettings(private val context: Context) {
 
     // Definindo as chaves
     companion object {
+        private val IS_FIRST_RUN = booleanPreferencesKey("is_first_run")
         val TRIAL_START_TIMESTAMP = longPreferencesKey("trial_start_timestamp")
         val SHOW_SUCCESS = booleanPreferencesKey("show_success")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
@@ -31,10 +32,9 @@ class UserSettings(private val context: Context) {
         val PARANOID_MODE_KEY = booleanPreferencesKey("paranoid_mode")
         val USER_LOCAL_DDD_KEY = stringPreferencesKey("user_local_ddd")
         val STEALTH_MODE_KEY = booleanPreferencesKey("stealth_mode")
+
     }
-
     private val SHOW_TUTORIAL_KEY = booleanPreferencesKey("show_tutorial")
-
 
     // --- LEITURA (Flows que atualizam a tela e o serviço automaticamente) ---
     // Fluxos de leitura
@@ -156,5 +156,16 @@ class UserSettings(private val context: Context) {
         context.dataStore.edit { it[SHOW_TUTORIAL_KEY] = false }
     }
 
+    val isFirstRunFlow: Flow<Boolean> = context.dataStore.data.map { preferences: Preferences -> // 👈 Adicionamos o tipo explicitamente aqui
+        // Se o erro persistir na linha de baixo, especificamos o tipo na chave também
+        val isFirstRun = preferences[IS_FIRST_RUN]
+        isFirstRun ?: true
+    }
+
+    suspend fun setFirstRunCompleted() {
+        context.dataStore.edit { preferences ->
+            preferences[IS_FIRST_RUN] = false
+        }
+    }
 
 }

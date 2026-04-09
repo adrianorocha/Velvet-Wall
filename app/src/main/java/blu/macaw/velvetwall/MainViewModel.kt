@@ -364,6 +364,20 @@ class MainViewModel(
             userSettings.setTutorialCompleted()
         }
     }
+
+    val isFirstRun = userSettings.isFirstRunFlow.stateIn(
+        scope = viewModelScope, // O contexto onde o Flow vai "viver"
+        started = SharingStarted.WhileSubscribed(5000), // Mantém vivo por 5s após fechar a tela
+        initialValue = true // 🎯 Aqui definimos o tipo explicitamente e o valor inicial
+    )
+
+    fun completeOnboarding() {
+        viewModelScope.launch {
+            userSettings.setFirstRunCompleted()
+            // Opcional: Já iniciar o contador de 7 dias aqui se quiser ser agressivo
+            userSettings.startTrialIfNecessary()
+        }
+    }
 }
 
 // Factory

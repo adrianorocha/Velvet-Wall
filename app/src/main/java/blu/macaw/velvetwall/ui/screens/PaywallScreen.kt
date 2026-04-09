@@ -157,7 +157,10 @@ fun PaywallScreen(
                 modifier = Modifier.size(90.dp),
                 shape = RoundedCornerShape(24.dp),
                 color = Color.Black.copy(alpha = 0.4f),
-                border = BorderStroke(1.5.dp, Brush.linearGradient(listOf(RoyalCyan, Color.Transparent)))
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.linearGradient(listOf(RoyalCyan, Color.Transparent))
+                )
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -242,88 +245,114 @@ fun PaywallScreen(
                     when (state) {
                         is PaywallPriceState.Loading -> {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = RoyalCyan, modifier = Modifier.size(32.dp))
+                                CircularProgressIndicator(
+                                    color = RoyalCyan,
+                                    modifier = Modifier.size(32.dp)
+                                )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Acessando Google Play...", color = textMuted, fontSize = 14.sp)
+                                Text(
+                                    "Acessando Google Play...",
+                                    color = textMuted,
+                                    fontSize = 14.sp
+                                )
                             }
                         }
 
                         is PaywallPriceState.Error -> {
-                            Text("Falha na conexão segura.", color = Color(0xFFFF4D4D), fontSize = 14.sp)
+                            Text(
+                                "Falha na conexão segura.",
+                                color = Color(0xFFFF4D4D),
+                                fontSize = 14.sp
+                            )
                         }
 
                         is PaywallPriceState.Active -> {
                             val isPromo = state.discountTag != null
-                            val borderColor = if (isPromo) glowGold else RoyalCyan.copy(alpha = 0.3f)
 
-                            Surface(
-                                color = Color.Transparent,
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, borderColor.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth(0.9f)
+                            // 🎯 A MÁGICA DO OVERLAP: Um Box que alinha tudo no topo-centro
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.TopCenter
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(vertical = 16.dp)
+                                // 1. O CONTAINER PRINCIPAL (A caixa azul-escura com o preço)
+                                Surface(
+                                    color = Color(0xFF020617).copy(alpha = 0.4f), // Fundo escuro para destacar o neon
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, RoyalCyan.copy(alpha = 0.2f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .padding(top = 12.dp) // ⬅️ O SEGREDO: Empurra a caixa pra baixo para a Tag "montar" em cima
                                 ) {
-                                    if (isPromo) {
-                                        // 🎯 AQUI ESTÁ A MÁGICA: A Caixa da Tag com Borda Reluzente
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(bottom = 8.dp)
-                                                .then(shakeModifier) // Mantém o balanço
-                                                .border(
-                                                    BorderStroke(1.5.dp, tagBorderShimmerBrush), // Borda com luz!
-                                                    RoundedCornerShape(50) // Formato de pílula (Capsule)
-                                                )
-                                                .background(
-                                                    color = glowGold.copy(alpha = 0.05f),
-                                                    shape = RoundedCornerShape(50)
-                                                )
-                                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                                            contentAlignment = Alignment.Center
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(
+                                            top = 28.dp,
+                                            bottom = 20.dp
+                                        ) // Espaço no topo para não colar na Tag
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.Bottom,
+                                            horizontalArrangement = Arrangement.Center
                                         ) {
-                                            Text(
-                                                text = state.discountTag ?: "OFERTA DE LANÇAMENTO",
-                                                style = TextStyle(
-                                                    brush = tagTextShimmerBrush, // O texto também reluz
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    letterSpacing = 2.sp,
-                                                    shadow = Shadow(
-                                                        color = glowGold.copy(alpha = 0.8f),
-                                                        offset = Offset(0f, 0f),
-                                                        blurRadius = 15f
+                                            if (state.originalPrice != null) {
+                                                Text(
+                                                    text = state.originalPrice,
+                                                    color = Color(0xFFEF4444).copy(alpha = 0.8f),
+                                                    fontSize = 18.sp,
+                                                    style = TextStyle(textDecoration = TextDecoration.LineThrough),
+                                                    modifier = Modifier.padding(
+                                                        bottom = 6.dp,
+                                                        end = 12.dp
                                                     )
                                                 )
+                                            }
+
+                                            Text(
+                                                text = state.currentPrice.replace(".", ","),
+                                                style = TextStyle(
+                                                    fontSize = 46.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    brush = priceShimmerBrush,
+                                                    shadow = Shadow(
+                                                        color = RoyalCyan.copy(alpha = 0.3f),
+                                                        blurRadius = 25f
+                                                    )
+                                                ),
+                                                modifier = heartbeatModifier
                                             )
                                         }
                                     }
+                                }
 
-                                    Row(
-                                        verticalAlignment = Alignment.Bottom,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        if (state.originalPrice != null) {
-                                            Text(
-                                                text = state.originalPrice,
-                                                color = Color(0xFFEF4444).copy(alpha = 0.8f),
-                                                fontSize = 18.sp,
-                                                style = TextStyle(textDecoration = TextDecoration.LineThrough),
-                                                modifier = Modifier.padding(bottom = 6.dp, end = 12.dp)
+                                // 2. A TAG SOBREPOSTA (OFERTA DE LANÇAMENTO)
+                                if (isPromo) {
+                                    Box(
+                                        modifier = Modifier
+                                            .then(shakeModifier) // Continua chacoalhando suavemente
+                                            // 🛡️ CRUCIAL: O fundo precisa ser sólido (Color(0xFF06182B))
+                                            // para "cortar" a linha azul da caixa que está atrás.
+                                            .background(Color(0xFF06182B), RoundedCornerShape(50))
+                                            .border(
+                                                BorderStroke(1.5.dp, tagBorderShimmerBrush),
+                                                RoundedCornerShape(50)
                                             )
-                                        }
-
+                                            .padding(horizontal = 18.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Text(
-                                            text = state.currentPrice.replace(".", ","),
+                                            text = state.discountTag ?: "OFERTA DE LANÇAMENTO",
                                             style = TextStyle(
-                                                fontSize = 46.sp,
+                                                brush = tagTextShimmerBrush,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Black,
-                                                brush = priceShimmerBrush,
-                                                shadow = Shadow(color = RoyalCyan.copy(alpha = 0.3f), blurRadius = 25f)
-                                            ),
-                                            modifier = heartbeatModifier
+                                                letterSpacing = 1.5.sp,
+                                                shadow = Shadow(
+                                                    color = glowGold.copy(alpha = 0.8f),
+                                                    offset = Offset(0f, 0f),
+                                                    blurRadius = 15f
+                                                )
+                                            )
                                         )
                                     }
                                 }
@@ -379,7 +408,12 @@ fun PaywallScreen(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(top = 16.dp)
             ) {
-                Icon(Icons.Default.Security, contentDescription = null, tint = textMuted, modifier = Modifier.size(14.dp))
+                Icon(
+                    Icons.Default.Security,
+                    contentDescription = null,
+                    tint = textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = "Pagamento 100% seguro via Google Play",
@@ -395,7 +429,11 @@ fun PaywallScreen(
                 enabled = !isRestoring
             ) {
                 if (isRestoring) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = RoyalCyan)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = RoyalCyan
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("Sincronizando...", color = textMuted)
                 } else {
@@ -446,7 +484,11 @@ private fun FeatureRow(
 }
 
 @Composable
-fun rememberAnimatedShimmerBrush(shimmerColor: Color, backgroundColor: Color, durationMillis: Int = 1500): Brush {
+fun rememberAnimatedShimmerBrush(
+    shimmerColor: Color,
+    backgroundColor: Color,
+    durationMillis: Int = 1500
+): Brush {
     val transition = rememberInfiniteTransition(label = "ShimmerTransition")
     val translateAnimation by transition.animateFloat(
         initialValue = 0f, targetValue = 1000f,
