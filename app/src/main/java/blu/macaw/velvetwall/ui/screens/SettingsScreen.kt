@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.DeleteForever
@@ -74,6 +73,7 @@ import blu.macaw.velvetwall.ui.components.SettingsClickableItem
 import blu.macaw.velvetwall.ui.components.SettingsGroup
 import blu.macaw.velvetwall.ui.theme.RoyalCyan
 import blu.macaw.velvetwall.ui.theme.VelvetBlack
+import blu.macaw.velvetwall.BuildConfig
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -376,7 +376,12 @@ private fun FooterSection() {
         Icon(Icons.Default.Shield, null, tint = RoyalCyan.copy(alpha = 0.3f), modifier = Modifier.size(40.dp))
         Spacer(Modifier.height(8.dp))
         Text("Velvet Wall", color = Color.White, fontWeight = FontWeight.Bold)
-        Text("Versão 1.1.0", color = Color.Gray, fontSize = 12.sp)
+        Text(
+            text = "Versão ${BuildConfig.VERSION_NAME}", // 🚀 Puxa direto do Gradle
+            color = Color.Gray,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
         Text("Blu Macaw Lab's", color = RoyalCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
