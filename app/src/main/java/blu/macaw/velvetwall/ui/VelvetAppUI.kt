@@ -181,8 +181,8 @@ fun VelvetAppNavigation(
         }
 
         val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
-//        val currentTime = System.currentTimeMillis() + (8L * 24 * 60 * 60 * 1000L)
-        val currentTime = System.currentTimeMillis()
+        val currentTime = System.currentTimeMillis() + (8L * 24 * 60 * 60 * 1000L)
+//        val currentTime = System.currentTimeMillis()
 
         val isTrialExpired = trialStart > 0 && (currentTime - trialStart) >= sevenDaysInMillis
 
@@ -341,6 +341,9 @@ fun HomeScreen(viewModel: MainViewModel, userIsPro: Boolean = false, onDebugPayw
     val history by viewModel.history.collectAsState(initial = emptyList())
     val blockedCount = history.size
     val trialStart by viewModel.trialStartTimestamp.collectAsState()
+// 🎯 VARIÁVEL DE CONTROLE ANTI-PISCADA
+    var canShowOnboarding by remember { mutableStateOf(false) }
+
 
     var showDebugMenu by remember { mutableStateOf(false) }
     var debugClickCount by remember { mutableStateOf(0) }
@@ -396,6 +399,18 @@ fun HomeScreen(viewModel: MainViewModel, userIsPro: Boolean = false, onDebugPayw
             ContextCompat.checkSelfPermission(context, permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         } else true
         return contactPerm && notifPerm
+    }
+
+// Aguarda o Google Billing responder antes de jogar a tela na cara do usuário
+    LaunchedEffect(isFirstRun, userIsPro) {
+        if (isFirstRun && !userIsPro) {
+            kotlinx.coroutines.delay(800) // Segura 800ms para a API do Google respirar
+            if (!userIsPro) { // Se depois de 800ms ele continuar free, aí sim exibe
+                canShowOnboarding = true
+            }
+        } else {
+            canShowOnboarding = false
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -548,7 +563,7 @@ fun HomeScreen(viewModel: MainViewModel, userIsPro: Boolean = false, onDebugPayw
 
         // --- 🚀 CAMADA DO ONBOARDING (Z-Index 50) ---
         AnimatedVisibility(
-            visible = isFirstRun,
+            visible = canShowOnboarding,
             enter = slideInVertically(initialOffsetY = { it }),
             exit = slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier.align(Alignment.BottomCenter).zIndex(50f)
